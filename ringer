@@ -131,23 +131,50 @@ def multiple_line_plot_ringer(all_data_list,title, filename, out_dir):
 
 def linear_interpolate_ringer_results(sorted_angles,sorted_map_values,angle_sampling):
     # Import numpy for interpolation routines
-	import numpy
+    import numpy
 
-	# Extend the map values, and angles to include the first element at end 
-	# (over 360 deg),and the last elment at the start (below 0 deg)
-	sorted_map_values.insert(0,sorted_map_values[-1])
-	# now need to append 2nd value to end of list, as 1st values is the appended value
-	sorted_map_values.append(sorted_map_values[1])
-	sorted_angles.insert(0,sorted_angles[0]-angle_sampling)
-	sorted_angles.append(sorted_angles[-1]+angle_sampling)	
+    # Extend the map values, and angles to include the first element at end 
+    # (over 360 deg),and the last elment at the start (below 0 deg)
+    sorted_map_values.insert(0,sorted_map_values[-1])
+    # now need to append 2nd value to end of list, as 1st values is the appended value
+    sorted_map_values.append(sorted_map_values[1])
+    sorted_angles.insert(0,sorted_angles[0]-angle_sampling)
+    sorted_angles.append(sorted_angles[-1]+angle_sampling)  
 
-	# Generate a set of angles to interpolate to based on the angle sampling
-	interpolated_angles = numpy.arange(1, 360, angle_sampling)
-	
-	# interpolate
-	interpolated_map_values = numpy.interp(interpolated_angles,sorted_angles,sorted_map_values) 
+    # Generate a set of angles to interpolate to based on the angle sampling
+    interpolated_angles = numpy.arange(1, 360, angle_sampling)
+    
+    # interpolate
+    interpolated_map_values = numpy.interp(interpolated_angles,sorted_angles,sorted_map_values) 
 
-	return (interpolated_angles,interpolated_map_values)
+    return (interpolated_angles,interpolated_map_values)
+
+def correlation_single_residue(input_csv,residue,output_dir):
+    # Import numpy for correlation routines, pandas for dataframes
+    import numpy, pandas
+    
+    data = pandas.read_csv(input_csv)
+    # Allocate array to store map values across datasets. Removing one from 
+    # number of columns due to dataset name stored with map values
+    all_map_values=numpy.zeros((len(data.values),len(data.columns)-1))
+    dataset_labels=[]
+    
+    # Extract map values and dataset labels from Pandas import of CSV 
+    for i in range(0,len(data.values)):
+        dataset_labels.append(data.values[i,0])
+        map_values = data.values[i,1:]  
+        all_map_values[i]=map_values
+    # Generate correlation coefficents
+    correlation_matrix = numpy.corrcoef(all_map_values)
+    # Store in labelled data frame
+    correlation_data = pandas.DataFrame(correlation_matrix, index = dataset_labels, columns = dataset_labels)
+    # Correlation data as CSV 
+    filename='{}-from {} datasets-correlation-ringer.csv'.format(residue,len(data.values)) 
+    correlation_csv = correlation_data.to_csv(os.path.join(output_dir,filename))
+
+    return correlation_csv
+
+    #from IPython import embed; embed() 
 
 def run(params):
 
@@ -174,81 +201,69 @@ def run(params):
     # Pull out the "first" ringer results set as a reference
     ref_set = all_results.values()[0]
 
-    residue_data_list = []
-    
     # Map and angle types currently selected to analyse
     map_type = '2mFo-DFc'
     angle_type = 'chi1'
-    out_dir = 'Processed_data'	
+    out_dir = 'Processed_data'  
 
-	# Create an output directory if it doesn't already exist 
+    # Create an output directory if it doesn't already exist 
     out_dir = 'Processed_data'
     if not os.path.isdir(out_dir):
         os.makedirs(out_dir)
 
     # Iterate through the residues
     for residue, data in ref_set.iterrows():
-		# Create dataframe to store results from one residue, across multiple datasets 
-        #single_residue_multiple_datasets = pandas.DataFrame(columns=interpolated_angles)
-		             
-        # Iterate through the datasets
-        for dataset_label, dataset_results in all_results.iteritems():
-            # Choose a map_type/angle_type
-            dataset_results = dataset_results.loc[(dataset_results[1] == map_type)]
-            dataset_results = dataset_results.loc[(dataset_results[2] == angle_type)]
-             
-            current_dataset_results = dataset_results.loc[(dataset_results.index == residue)]    
+        residue_data_list = []
 
-            sorted_angles, sorted_map_values = normalise_and_sort_ringer_results(current_dataset_results, params=params)
-            line_plot_ringer(sorted_angles, sorted_map_values, title=residue, filename='{}-{}.png'.format(residue, dataset_label),out_dir=out_dir)
+        interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue,len(params.input.dir),map_type,angle_type)
+    
+        if not os.path.exists(os.path.join(out_dir,interpolate_csv)):
+        
+            # Iterate through the datasets
+            for dataset_label, dataset_results in all_results.iteritems():
+                # Choose a map_type/angle_type
+                dataset_results = dataset_results.loc[(dataset_results[1] == map_type)]
+                dataset_results = dataset_results.loc[(dataset_results[2] == angle_type)]
+                 
+                current_dataset_results = dataset_results.loc[(dataset_results.index == residue)]    
 
-            interpolated_angles,interpolated_map_values = linear_interpolate_ringer_results(sorted_angles,sorted_map_values,angle_sampling=params.settings.angle_sampling)       	
-            
-			# Store these in a list
-            residue_data_list.append((interpolated_angles, interpolated_map_values))
-			
-            if not 'single_residue_multiple_datasets' in locals():
-                single_residue_multiple_datasets = pandas.DataFrame(columns=interpolated_angles)
+                sorted_angles, sorted_map_values = normalise_and_sort_ringer_results(current_dataset_results, params=params)
+                line_plot_ringer(sorted_angles, sorted_map_values, title=residue, filename='{}-{}.png'.format(residue, dataset_label),out_dir=out_dir)
 
-			# Populate dataframe with results from one residue, across multiple datasets 
-            single_residue_multiple_datasets.loc['{}'.format(dataset_label)]=interpolated_map_values		
+                interpolated_angles,interpolated_map_values = linear_interpolate_ringer_results(sorted_angles,sorted_map_values,angle_sampling=params.settings.angle_sampling)          
+                
+                # Store these in a list
+                residue_data_list.append((interpolated_angles, interpolated_map_values))
+                
+                # If it doesn't exist: Create dataframe to store results from one residue, across multiple datasets 
+                if not 'single_residue_multiple_datasets' in locals():
+                    single_residue_multiple_datasets = pandas.DataFrame(columns=interpolated_angles)
 
-		# Print results for all of the datasets for this residue in the same graph
-        multiple_line_plot_ringer(residue_data_list,title=residue, filename='all-{}-{}-dataset.png'.format(residue, len(residue_data_list)),out_dir=out_dir)   
-        # Output CSV from one resiude, multiple datasets
-        pandas.DataFrame.to_csv(single_residue_multiple_datasets,os.path.join(out_dir,'{}_{}_Datasets_{}_{}-ringer.csv'.format(residue,len(residue_data_list),map_type,angle_type)))
-        break
+                # Populate dataframe with results from one residue, across multiple datasets 
+                single_residue_multiple_datasets.loc['{}'.format(dataset_label)]=interpolated_map_values        
 
-        ####################################################
-        # Create output dataframe for each angle for each residue
-        ###################################################
+            # Print results for all of the datasets for this residue in the same graph
+            # Output CSV from one resiude, multiple datasets
+            multiple_line_plot_ringer(residue_data_list,title=residue, filename='all-{}-{}-dataset.png'.format(residue, len(residue_data_list)),out_dir=out_dir)  
+            pandas.DataFrame.to_csv(single_residue_multiple_datasets,os.path.join(out_dir,interpolate_csv))
+        else:
+            print '{}:Interpolated CSVs already generated, for these {} datasets'.format(residue,len(params.input.dir))
 
-#        output = pandas.DataFrame(index=[1,2,3], columns=['a','f'])
-#        # column
-#        output['a']
-#        # row
-#        output.loc[1]
-#       
-#
-#
-# 
-#        output = pandas.DataFrame(index=[], columns=angles)
-#
-#        # append to results
-#        output.loc['dataset1'] = new_map_data
-#
-       # out_residue_ang = pandas.DataFrame(index=['{}'.format(angle_type)],columns=sorted_angles)
-       # out_residue_ang.loc['{}'.format(angle_type)]=sorted_values  
-        ###################################################
-        # Create CSV by RESIDUE & BY ANGLE & BY MAP_TYPE
-        ###################################################
-       # pandas.DataFrame.to_csv(out_residue_ang,'{}{}-ringer.csv'.format(residue,map_type),mode='a')
-        ##################################################
-        # APPEND to existing output files? (other datasets)
-        #################################################
+    # Calculate correlation coefficents     
+    for residue, data in ref_set.iterrows():
+
+        interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue,len(params.input.dir),map_type,angle_type)
+        input_csv = os.path.join(out_dir,interpolate_csv)
+        
+        correlation_csv='{}-from {} datasets-correlation-ringer.csv'.format(residue,len(params.input.dir))
+
+        if not os.path.exists(os.path.join(out_dir,correlation_csv)):
+            correlation_csv = correlation_single_residue(input_csv,residue,out_dir)
+        else:
+            print'{}: Correlation CSV already generated, for these {} datasets'.format(residue,len(params.input.dir))
 
 
-
+# For allowing command manager 
 if __name__ == '__main__':
     from giant.jiffies import run_default
     run_default(run=run, master_phil=master_phil, args=sys.argv[1:], blank_arg_prepend=blank_arg_prepend)
