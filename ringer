@@ -104,17 +104,17 @@ def normalise_and_sort_ringer_results(current_dataset_results,params):
     
     return (sorted_angles,sorted_map_values)
 
-def line_plot_ringer(sorted_angles,sorted_map_values,title,filename):
+def line_plot_ringer(sorted_angles,sorted_map_values,title,filename,out_dir):
 
     fig=pyplot.figure()
     pyplot.plot(sorted_angles, sorted_map_values)
     pyplot.title(title)
     pyplot.xlabel('Angle')
     pyplot.tight_layout()
-    pyplot.savefig(filename)
+    pyplot.savefig(os.path.join(out_dir,filename))
     pyplot.close(fig)
 
-def multiple_line_plot_ringer(all_data_list,title, filename):
+def multiple_line_plot_ringer(all_data_list,title, filename, out_dir):
 
     fig=pyplot.figure()
     pyplot.title(title)
@@ -126,8 +126,28 @@ def multiple_line_plot_ringer(all_data_list,title, filename):
     
     pyplot.xlabel('Angle')
     pyplot.tight_layout()
-    pyplot.savefig(filename)
+    pyplot.savefig(os.path.join(out_dir,filename))
     pyplot.close(fig)
+
+def linear_interpolate_ringer_results(sorted_angles,sorted_map_values,angle_sampling):
+    # Import numpy for interpolation routines
+	import numpy
+
+	# Extend the map values, and angles to include the first element at end 
+	# (over 360 deg),and the last elment at the start (below 0 deg)
+	sorted_map_values.insert(0,sorted_map_values[-1])
+	# now need to append 2nd value to end of list, as 1st values is the appended value
+	sorted_map_values.append(sorted_map_values[1])
+	sorted_angles.insert(0,sorted_angles[0]-angle_sampling)
+	sorted_angles.append(sorted_angles[-1]+angle_sampling)	
+
+	# Generate a set of angles to interpolate to based on the angle sampling
+	interpolated_angles = numpy.arange(1, 360, angle_sampling)
+	
+	# interpolate
+	interpolated_map_values = numpy.interp(interpolated_angles,sorted_angles,sorted_map_values) 
+
+	return (interpolated_angles,interpolated_map_values)
 
 def run(params):
 
@@ -149,36 +169,54 @@ def run(params):
         # Process dataset with ringer and convert results to DataFrame
         ringer_csv = process_with_ringer(pdb=pdb, mtz=mtz,angle_sampling=params.settings.angle_sampling, output_dir=dir)
         ringer_results = pandas.DataFrame.from_csv(ringer_csv, header=None)
-
         all_results[label] = ringer_results
         
     # Pull out the "first" ringer results set as a reference
     ref_set = all_results.values()[0]
 
-    all_data_list = []
+    residue_data_list = []
     
     # Map and angle types currently selected to analyse
     map_type = '2mFo-DFc'
     angle_type = 'chi1'
+    out_dir = 'Processed_data'	
+
+	# Create an output directory if it doesn't already exist 
+    out_dir = 'Processed_data'
+    if not os.path.isdir(out_dir):
+        os.makedirs(out_dir)
 
     # Iterate through the residues
     for residue, data in ref_set.iterrows():
+		# Create dataframe to store results from one residue, across multiple datasets 
+        #single_residue_multiple_datasets = pandas.DataFrame(columns=interpolated_angles)
+		             
         # Iterate through the datasets
         for dataset_label, dataset_results in all_results.iteritems():
-            #from IPython import embed; embed()
             # Choose a map_type/angle_type
             dataset_results = dataset_results.loc[(dataset_results[1] == map_type)]
             dataset_results = dataset_results.loc[(dataset_results[2] == angle_type)]
              
             current_dataset_results = dataset_results.loc[(dataset_results.index == residue)]    
-            
-            sorted_angles, sorted_map_values = normalise_and_sort_ringer_results(current_dataset_results, params=params)
-            line_plot_ringer(sorted_angles, sorted_map_values, title=residue, filename='{}-{}.png'.format(residue, dataset_label))   
 
-            # Store these in a list
-            all_data_list.append((sorted_angles, sorted_map_values))
-        # Print results for all of the datasets for this residue in the same graph
-        multiple_line_plot_ringer(all_data_list,title=residue, filename='all-{}-{}-dataset.png'.format(residue, len(all_data_list)))   
+            sorted_angles, sorted_map_values = normalise_and_sort_ringer_results(current_dataset_results, params=params)
+            line_plot_ringer(sorted_angles, sorted_map_values, title=residue, filename='{}-{}.png'.format(residue, dataset_label),out_dir=out_dir)
+
+            interpolated_angles,interpolated_map_values = linear_interpolate_ringer_results(sorted_angles,sorted_map_values,angle_sampling=params.settings.angle_sampling)       	
+            
+			# Store these in a list
+            residue_data_list.append((interpolated_angles, interpolated_map_values))
+			
+            if not 'single_residue_multiple_datasets' in locals():
+                single_residue_multiple_datasets = pandas.DataFrame(columns=interpolated_angles)
+
+			# Populate dataframe with results from one residue, across multiple datasets 
+            single_residue_multiple_datasets.loc['{}'.format(dataset_label)]=interpolated_map_values		
+
+		# Print results for all of the datasets for this residue in the same graph
+        multiple_line_plot_ringer(residue_data_list,title=residue, filename='all-{}-{}-dataset.png'.format(residue, len(residue_data_list)),out_dir=out_dir)   
+        # Output CSV from one resiude, multiple datasets
+        pandas.DataFrame.to_csv(single_residue_multiple_datasets,os.path.join(out_dir,'{}_{}_Datasets_{}_{}-ringer.csv'.format(residue,len(residue_data_list),map_type,angle_type)))
         break
 
         ####################################################
