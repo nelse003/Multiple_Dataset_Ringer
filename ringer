@@ -151,6 +151,10 @@ def linear_interpolate_ringer_results(sorted_angles,sorted_map_values,angle_samp
 
     return (interpolated_angles,interpolated_map_values)
 
+
+###############################################################################
+# Rendunant functions for correlation coefficents & clustering
+###############################################################################
 def correlation_single_residue(input_csv,residue,output_dir):
     # Import numpy for correlation routines, pandas for dataframes
     import numpy, pandas
@@ -287,7 +291,52 @@ def cluster_single_residue(correlation_csv,residue,out_dir):
     maximal_cophenetic = ddata.get('dcoord')[-1][1]
     
     return maximal_cophenetic    
-     
+
+
+def correlation_coefficent_clustering(ref_set,out_dir,map_type,angle_type,params):
+
+    # TODO Send to file, so this doesn't run every rub
+    # Find miminum value in correlation_plots   
+    min_corr = find_correlation_min(ref_set,out_dir,params)
+    
+    # DataFrame to store max_cophenetic distance
+    max_coph=[]
+
+    # Calculate correlation coefficents and cluster for single residues    
+    for residue, data in ref_set.iterrows():
+        out_dir_residue=os.path.join(out_dir,residue)
+
+        interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue,len(params.input.dir),map_type,angle_type)
+        input_csv = os.path.join(out_dir_residue,interpolate_csv)
+        
+        correlation_csv='{}-from {} datasets-correlation-ringer.csv'.format(residue,len(params.input.dir))
+
+        if not os.path.exists(os.path.join(out_dir_residue,correlation_csv)):
+            correlation_data = correlation_single_residue(input_csv,residue,out_dir_residue)
+        else:
+            print'{}: Correlation CSV already generated, for these {} datasets'.format(residue,len(params.input.dir))
+        # print correlation heatmap 
+        correlation_input_csv = os.path.join(out_dir_residue,correlation_csv) 
+        if not os.path.exists(os.path.join(out_dir_residue,"{} correlation_plot.png".format(residue))):    
+            correlation_heatmap(correlation_input_csv,residue,out_dir_residue,min_corr)
+        else:
+            print '{}: Correlation Heatmap already generated, for these {} datasets'.format(residue,len(params.input.dir))       
+
+        #Hierachical clustering across one residue
+        plot_filename = "{}_correlation_dendrogram.png".format(residue)
+        #if not os.path.exists(os.path.join(out_dir_residue,plot_filename)):
+        max_cophenetic = cluster_single_residue(os.path.join(out_dir_residue,correlation_csv),residue,out_dir_residue)
+        #else:
+        #    print '{}: Correlation dendrogram already generated for these {} datasets'.format(residue,len(params.input.dir))
+        #max_coph.append([residue,max_cophenetic])
+    
+   # max_coph_df=pandas.DataFrame(max_coph)    
+   # max_coph_df.to_csv('test.csv')
+    
+###############################################################################
+# Main program 
+###############################################################################
+
 def run(params):
 
     # Dictionary to store all of the 
@@ -365,43 +414,11 @@ def run(params):
             pandas.DataFrame.to_csv(single_residue_multiple_datasets,os.path.join(out_dir_residue,interpolate_csv))
         else:
             print '{}:Interpolated CSVs already generated, for these {} datasets'.format(residue,len(params.input.dir))
-    # TODO Send to file, so this doesn't run every rub
-    # Find miminum value in correlation_plots   
-    min_corr = find_correlation_min(ref_set,out_dir,params)
+
+    # Reduntant function that generates clustering coefficent clustering 
+    #correlation_coefficent_clustering(ref_set,out_dir,map_type,angle_type,params)
+
     
-    # DataFrame to store max_cophenetic distance
-    max_coph=[]
-
-    # Calculate correlation coefficents and cluster for single residues    
-    for residue, data in ref_set.iterrows():
-        out_dir_residue=os.path.join(out_dir,residue)
-
-        interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue,len(params.input.dir),map_type,angle_type)
-        input_csv = os.path.join(out_dir_residue,interpolate_csv)
-        
-        correlation_csv='{}-from {} datasets-correlation-ringer.csv'.format(residue,len(params.input.dir))
-
-        if not os.path.exists(os.path.join(out_dir_residue,correlation_csv)):
-            correlation_data = correlation_single_residue(input_csv,residue,out_dir_residue)
-        else:
-            print'{}: Correlation CSV already generated, for these {} datasets'.format(residue,len(params.input.dir))
-        # print correlation heatmap 
-        correlation_input_csv = os.path.join(out_dir_residue,correlation_csv) 
-        if not os.path.exists(os.path.join(out_dir_residue,"{} correlation_plot.png".format(residue))):    
-            correlation_heatmap(correlation_input_csv,residue,out_dir_residue,min_corr)
-        else:
-            print '{}: Correlation Heatmap already generated, for these {} datasets'.format(residue,len(params.input.dir))       
-
-        #Hierachical clustering across one residue
-        plot_filename = "{}_correlation_dendrogram.png".format(residue)
-        #if not os.path.exists(os.path.join(out_dir_residue,plot_filename)):
-        max_cophenetic = cluster_single_residue(os.path.join(out_dir_residue,correlation_csv),residue,out_dir_residue)
-        #else:
-        #    print '{}: Correlation dendrogram already generated for these {} datasets'.format(residue,len(params.input.dir))
-        #max_coph.append([residue,max_cophenetic])
-    
-   # max_coph_df=pandas.DataFrame(max_coph)    
-   # max_coph_df.to_csv('test.csv')
 
 #For allowing command manager 
 if __name__ == '__main__':
