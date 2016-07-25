@@ -13,6 +13,8 @@ from matplotlib import pyplot
 pyplot.style.use('ggplot')
 ##################################
 
+from scipy.cluster.hierarchy import dendrogram
+
 from bamboo.common.command import CommandManager
 
 blank_arg_prepend = {None:'dir=', '.pdb':'pdb=', '.mtz':'mtz='}
@@ -176,6 +178,116 @@ def correlation_single_residue(input_csv,residue,output_dir):
 
     #from IPython import embed; embed() 
 
+def correlation_heatmap(correlation_csv,residue,out_dir,min_corr):
+    import numpy, pandas
+    # Load csv into pandas DataFrame
+    data = pandas.read_csv(correlation_csv, index_col=0)
+    dataset_labels = data.columns.values
+    
+    # Make figure & plot: scale minimum to minimum across all datasets
+    fig, ax = pyplot.subplots()
+    heatmap= ax.pcolor(data.values,cmap='RdBu',vmin=round(min_corr-0.05,1),vmax=1)
+   
+    pyplot.title('{}'.format(residue),fontsize=300)
+ 
+    # Format
+    fig = pyplot.gcf()
+    fig.set_size_inches(200,200)
+    
+    #Turn off the frame
+    ax.set_frame_on(False)
+
+    # Set tick positions
+    ax.set(xticks=numpy.arange(len(dataset_labels))+0.5,xticklabels=dataset_labels,yticks = numpy.arange(len(dataset_labels))+0.5,yticklabels=dataset_labels)      #ax.set_xticks()
+
+    #Set a table like display
+    ax.invert_yaxis()
+ 
+    # Set labels
+    column_labels=dataset_labels
+    row_labels=dataset_labels
+    
+    # Rotate x ticks
+    pyplot.xticks(rotation=90)
+    
+    # Colourbar
+    cbar = fig.colorbar(heatmap,shrink=0.5) #,label='Correlation Coefficient')
+    cbar.ax.tick_params(labelsize=100)
+    cbar.set_label('Correlation Coefficient',rotation=270,fontsize=100)
+    #Output file
+    filename = "{} correlation_plot.png".format(residue)
+    pyplot.savefig(os.path.join(out_dir,filename))     
+    pyplot.close(fig)    
+
+def find_correlation_min(ref_set,out_dir,params):
+    import numpy, pandas
+    corrmin=[]
+
+    for residue, data in ref_set.iterrows():
+        out_dir_residue=os.path.join(out_dir,residue)
+        correlation_csv='{}-from {} datasets-correlation-ringer.csv'.format(residue,len(params.input.dir))
+        input_csv=os.path.join(out_dir_residue,correlation_csv) 
+        # Load csv into pandas DataFrame
+        data = pandas.read_csv(input_csv, index_col=0)
+        dataset_labels = data.columns.values
+        
+        corrmin.append(min(data.min()))
+    return min(corrmin)   
+
+def augmented_dendrogram(*args, **kwargs):
+    """Improved dendrogram plotting for Hierarchal clustering"""
+    ddata = dendrogram(*args, **kwargs)
+
+    if not kwargs.get('no_plot', False):
+        for i, d in zip(ddata['icoord'], ddata['dcoord']):
+            x = 0.5 * sum(i[1:3])
+            y = d[1]
+            pyplot.plot(x, y, 'ro')
+            pyplot.annotate("%.3g" % y, (x, y), xytext=(0, -8),
+                         textcoords='offset points',
+                         va='top', ha='center')
+    return ddata
+
+def cluster_single_residue(correlation_csv,residue,out_dir):
+    """ Hierarchal clustering on correlation matrix """
+    import numpy, scipy, pandas, re
+    
+    from scipy.cluster.hierarchy import linkage
+    from scipy.cluster.hierarchy import fcluster    
+
+    # Load csv into pandas DataFrame
+    data = pandas.read_csv(correlation_csv, index_col=0)
+    dataset_labels = data.columns.values
+
+    # Generate linkage matrix 
+    linkage_matrix = linkage(data.values, "single")
+    
+    # Cluster selection
+    #fcluster(linkage_matrix, 1)
+ 
+    # Plotting dendorgram
+    pyplot.figure(2, figsize=(8,8))
+    pyplot.clf()
+    ddata = augmented_dendrogram(linkage_matrix,color_threshold=1,p=15,truncate_mode='lastp',labels=dataset_labels)
+    "{}_correlation_dendrogram".format(residue)
+    pyplot.gcf().subplots_adjust(bottom=0.25)
+    pyplot.xticks(rotation=90)
+    pyplot.title("{} Correlation Dendrogram".format(residue))
+    pyplot.ylabel("Cophenetic distance")
+    plot_filename = "{}_correlation_dendrogram.png".format(residue)
+    pyplot.savefig(os.path.join(out_dir,plot_filename))
+        
+ 
+    # Getting labels for singletons from dendrogram
+    cluster_leaves = ddata.get('ivl')
+    regex=re.compile('\(.')
+    #singletons = filter(lambda i: not regex.search(i), cluster_leaves) 
+    singletons = [i for i in cluster_leaves if not regex.search(i)]
+    #Get maximal cophenetic distance
+    maximal_cophenetic = ddata.get('dcoord')[-1][1]
+    
+    return maximal_cophenetic    
+     
 def run(params):
 
     # Dictionary to store all of the 
@@ -211,24 +323,29 @@ def run(params):
     if not os.path.isdir(out_dir):
         os.makedirs(out_dir)
 
+    #Choose a map_type/angle_type by reducing reference set
+    ref_set=ref_set.loc[(ref_set[1] == map_type)]
+    ref_set=ref_set.loc[(ref_set[2] == angle_type)]
+
     # Iterate through the residues
     for residue, data in ref_set.iterrows():
         residue_data_list = []
+        # Create ouput directories for each residue
+        out_dir_residue=os.path.join(out_dir,residue)
+        if not os.path.isdir(out_dir_residue):
+            os.makedirs(out_dir_residue)
 
         interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue,len(params.input.dir),map_type,angle_type)
     
-        if not os.path.exists(os.path.join(out_dir,interpolate_csv)):
+        if not os.path.exists(os.path.join(out_dir_residue,interpolate_csv)):
         
             # Iterate through the datasets
             for dataset_label, dataset_results in all_results.iteritems():
-                # Choose a map_type/angle_type
-                dataset_results = dataset_results.loc[(dataset_results[1] == map_type)]
-                dataset_results = dataset_results.loc[(dataset_results[2] == angle_type)]
                  
                 current_dataset_results = dataset_results.loc[(dataset_results.index == residue)]    
 
                 sorted_angles, sorted_map_values = normalise_and_sort_ringer_results(current_dataset_results, params=params)
-                line_plot_ringer(sorted_angles, sorted_map_values, title=residue, filename='{}-{}.png'.format(residue, dataset_label),out_dir=out_dir)
+                line_plot_ringer(sorted_angles, sorted_map_values, title=residue, filename='{}-{}.png'.format(residue, dataset_label),out_dir=out_dir_residue)
 
                 interpolated_angles,interpolated_map_values = linear_interpolate_ringer_results(sorted_angles,sorted_map_values,angle_sampling=params.settings.angle_sampling)          
                 
@@ -244,26 +361,49 @@ def run(params):
 
             # Print results for all of the datasets for this residue in the same graph
             # Output CSV from one resiude, multiple datasets
-            multiple_line_plot_ringer(residue_data_list,title=residue, filename='all-{}-{}-dataset.png'.format(residue, len(residue_data_list)),out_dir=out_dir)  
-            pandas.DataFrame.to_csv(single_residue_multiple_datasets,os.path.join(out_dir,interpolate_csv))
+            multiple_line_plot_ringer(residue_data_list,title=residue, filename='all-{}-{}-dataset.png'.format(residue, len(residue_data_list)),out_dir=out_dir_residue)  
+            pandas.DataFrame.to_csv(single_residue_multiple_datasets,os.path.join(out_dir_residue,interpolate_csv))
         else:
             print '{}:Interpolated CSVs already generated, for these {} datasets'.format(residue,len(params.input.dir))
+    # TODO Send to file, so this doesn't run every rub
+    # Find miminum value in correlation_plots   
+    min_corr = find_correlation_min(ref_set,out_dir,params)
+    
+    # DataFrame to store max_cophenetic distance
+    max_coph=[]
 
-    # Calculate correlation coefficents     
+    # Calculate correlation coefficents and cluster for single residues    
     for residue, data in ref_set.iterrows():
+        out_dir_residue=os.path.join(out_dir,residue)
 
         interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue,len(params.input.dir),map_type,angle_type)
-        input_csv = os.path.join(out_dir,interpolate_csv)
+        input_csv = os.path.join(out_dir_residue,interpolate_csv)
         
         correlation_csv='{}-from {} datasets-correlation-ringer.csv'.format(residue,len(params.input.dir))
 
-        if not os.path.exists(os.path.join(out_dir,correlation_csv)):
-            correlation_csv = correlation_single_residue(input_csv,residue,out_dir)
+        if not os.path.exists(os.path.join(out_dir_residue,correlation_csv)):
+            correlation_data = correlation_single_residue(input_csv,residue,out_dir_residue)
         else:
             print'{}: Correlation CSV already generated, for these {} datasets'.format(residue,len(params.input.dir))
+        # print correlation heatmap 
+        correlation_input_csv = os.path.join(out_dir_residue,correlation_csv) 
+        if not os.path.exists(os.path.join(out_dir_residue,"{} correlation_plot.png".format(residue))):    
+            correlation_heatmap(correlation_input_csv,residue,out_dir_residue,min_corr)
+        else:
+            print '{}: Correlation Heatmap already generated, for these {} datasets'.format(residue,len(params.input.dir))       
 
+        #Hierachical clustering across one residue
+        plot_filename = "{}_correlation_dendrogram.png".format(residue)
+        #if not os.path.exists(os.path.join(out_dir_residue,plot_filename)):
+        max_cophenetic = cluster_single_residue(os.path.join(out_dir_residue,correlation_csv),residue,out_dir_residue)
+        #else:
+        #    print '{}: Correlation dendrogram already generated for these {} datasets'.format(residue,len(params.input.dir))
+        #max_coph.append([residue,max_cophenetic])
+    
+   # max_coph_df=pandas.DataFrame(max_coph)    
+   # max_coph_df.to_csv('test.csv')
 
-# For allowing command manager 
+#For allowing command manager 
 if __name__ == '__main__':
     from giant.jiffies import run_default
     run_default(run=run, master_phil=master_phil, args=sys.argv[1:], blank_arg_prepend=blank_arg_prepend)
