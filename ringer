@@ -1,10 +1,15 @@
 #!/usr/bin/env pandda.python
 
+
+###############################################################################
+# Packages
+##############################################################################
 import os, sys, copy, glob
 import shutil
 import pandas
 import libtbx.phil
-
+import scipy.stats as stats
+import numpy
 #################################
 import matplotlib
 matplotlib.use('Agg')
@@ -14,8 +19,16 @@ pyplot.style.use('ggplot')
 ##################################
 
 from scipy.cluster.hierarchy import dendrogram
+from scipy.stats import entropy
 
+# Package for Non linear least squares curve fitting 
+from scipy.optimize import curve_fit
+         
 from bamboo.common.command import CommandManager
+
+###############################################################################
+# Set up for passing arguments
+############################################################################### 
 
 blank_arg_prepend = {None:'dir=', '.pdb':'pdb=', '.mtz':'mtz='}
 
@@ -365,7 +378,6 @@ def run(params):
     # Map and angle types currently selected to analyse
     map_type = '2mFo-DFc'
     angle_type = 'chi1'
-    out_dir = 'Processed_data'  
 
     # Create an output directory if it doesn't already exist 
     out_dir = 'Processed_data'
@@ -378,47 +390,139 @@ def run(params):
 
     # Iterate through the residues
     for residue, data in ref_set.iterrows():
-        residue_data_list = []
+       residue_data_list = []
+        
         # Create ouput directories for each residue
-        out_dir_residue=os.path.join(out_dir,residue)
-        if not os.path.isdir(out_dir_residue):
-            os.makedirs(out_dir_residue)
-
-        interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue,len(params.input.dir),map_type,angle_type)
-    
-        if not os.path.exists(os.path.join(out_dir_residue,interpolate_csv)):
+       out_dir_residue=os.path.join(out_dir,residue)
+       if not os.path.isdir(out_dir_residue):
+           os.makedirs(out_dir_residue)
+        # Output filename for interpolated data 
+        # (Used to check existence of output)
+       interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue,len(params.input.dir),map_type,angle_type)
+        
+       if not os.path.exists(os.path.join(out_dir_residue,interpolate_csv)):
         
             # Iterate through the datasets
-            for dataset_label, dataset_results in all_results.iteritems():
+           for dataset_label, dataset_results in all_results.iteritems():
                  
-                current_dataset_results = dataset_results.loc[(dataset_results.index == residue)]    
+               current_dataset_results = dataset_results.loc[(dataset_results.index == residue)]    
 
-                sorted_angles, sorted_map_values = normalise_and_sort_ringer_results(current_dataset_results, params=params)
-                line_plot_ringer(sorted_angles, sorted_map_values, title=residue, filename='{}-{}.png'.format(residue, dataset_label),out_dir=out_dir_residue)
+               sorted_angles, sorted_map_values = normalise_and_sort_ringer_results(current_dataset_results, params=params)
+               line_plot_ringer(sorted_angles, sorted_map_values, title=residue, filename='{}-{}.png'.format(residue, dataset_label),out_dir=out_dir_residue)
 
-                interpolated_angles,interpolated_map_values = linear_interpolate_ringer_results(sorted_angles,sorted_map_values,angle_sampling=params.settings.angle_sampling)          
+               interpolated_angles,interpolated_map_values = linear_interpolate_ringer_results(sorted_angles,sorted_map_values,angle_sampling=params.settings.angle_sampling)          
                 
-                # Store these in a list
-                residue_data_list.append((interpolated_angles, interpolated_map_values))
+               # Store these in a list
+               residue_data_list.append((interpolated_angles, interpolated_map_values))
                 
-                # If it doesn't exist: Create dataframe to store results from one residue, across multiple datasets 
-                if not 'single_residue_multiple_datasets' in locals():
-                    single_residue_multiple_datasets = pandas.DataFrame(columns=interpolated_angles)
+               # If it doesn't exist: Create dataframe to store results from one residue, across multiple datasets 
+               if not 'single_residue_multiple_datasets' in locals():
+                   single_residue_multiple_datasets = pandas.DataFrame(columns=interpolated_angles)
 
-                # Populate dataframe with results from one residue, across multiple datasets 
-                single_residue_multiple_datasets.loc['{}'.format(dataset_label)]=interpolated_map_values        
+               # Populate dataframe with results from one residue, across multiple datasets 
+               single_residue_multiple_datasets.loc['{}'.format(dataset_label)]=interpolated_map_values        
 
             # Print results for all of the datasets for this residue in the same graph
             # Output CSV from one resiude, multiple datasets
-            multiple_line_plot_ringer(residue_data_list,title=residue, filename='all-{}-{}-dataset.png'.format(residue, len(residue_data_list)),out_dir=out_dir_residue)  
-            pandas.DataFrame.to_csv(single_residue_multiple_datasets,os.path.join(out_dir_residue,interpolate_csv))
-        else:
-            print '{}:Interpolated CSVs already generated, for these {} datasets'.format(residue,len(params.input.dir))
-
-    # Reduntant function that generates clustering coefficent clustering 
-    #correlation_coefficent_clustering(ref_set,out_dir,map_type,angle_type,params)
+           multiple_line_plot_ringer(residue_data_list,title=residue, filename='all-{}-{}-dataset.png'.format(residue, len(residue_data_list)),out_dir=out_dir_residue)  
+           pandas.DataFrame.to_csv(single_residue_multiple_datasets,os.path.join(out_dir_residue,interpolate_csv))
+       else:
+           print '{}:Interpolated CSVs already generated, for these {} datasets'.format(residue,len(params.input.dir))
 
     
+    # Reduntant function that generates clustering coefficent clustering 
+    #correlation_coefficent_clustering(ref_set,out_dir,map_type,angle_type,params)
+    
+    #######################################################################
+    # Generating histogram to show the location of the maximal points 
+    # of peak in ringer plot. Shows three rotamer bins [0, 120, 240] 
+    #######################################################################
+    
+    #TODO Check location of rotamer peaks (add to histogram)
+
+    if not os.path.exists(os.path.join(out_dir,'Modal_peak_location.png')):
+
+        modal_peak_angle=[]
+
+        for residue, data in ref_set.iterrows():
+            interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue,len(params.input.dir),map_type,angle_type)
+            out_dir_residue=os.path.join(out_dir,residue)        
+            interpolated_results=pandas.read_csv(os.path.join(out_dir_residue,interpolate_csv), index_col=0)
+
+            angle_with_max_map=(interpolated_results.idxmax(axis=1).values).astype(numpy.float)
+            modal_peak_angle.append(angle_with_max_map) 
+        pyplot.hist(numpy.concatenate(modal_peak_angle,axis=0),bins=24, normed=True)
+        pyplot.xlabel('Angle')
+        pyplot.ylabel('Relative frequency')
+        pyplot.title('Angles with maximal map value')
+        pyplot.savefig(os.path.join(out_dir,"Modal_peak_location"))
+        pyplot.close()
+    else:
+        print 'Histogram of peak angles exists'
+    
+    ###########################################################################
+    # Non Linear Least squares fitting routine, single & multiple gaussian. 
+    #  
+    ###########################################################################
+
+    for residue, data in ref_set.iterrows():
+        
+        # Reading in interpolated angle data
+        interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue,len(params.input.dir),map_type,angle_type)
+        out_dir_residue=os.path.join(out_dir,residue)
+        interpolated_results=pandas.read_csv(os.path.join(out_dir_residue,interpolate_csv), index_col=0)
+            
+        interpolated_row = interpolated_results.values[0]            
+        interpolated_angles = interpolated_results.columns.values.astype(int)            
+
+        # Single gaussain to fit data to (3 parameters)
+        def single_1d_gaussian_func(x,a,x0,sigma):
+            return a*numpy.exp(-(x-x0)**2/(2*sigma**2))
+        # Three gaussian curve to fit data to (9 parameters)
+        def three_1d_gaussian_func(x,a1,x01,sigma_1,a2,x02,sigma_2,a3,x03,sigma_3):
+            return (a1*numpy.exp(-(x-x01)**2/(2*sigma_1**2))+
+                       a2*numpy.exp(-(x-x02)**2/(2*sigma_2**2))+
+                       a3*numpy.exp(-(x-x03)**2/(2*sigma_3**2)))
+
+
+        # Initial parameter values for model fit
+        initialise_three=[10,0,20,10,120,20,10,240,20]
+
+        # Bounds (Added if updating scipy version)
+        #bounds_three=(-(numpy.inf),numpy.inf)
+
+        # Non linear least sqaures Curve fit on data:
+        # popt returnd best fit values for parameters of the model
+        # pcov contains covariance matrix for the fit
+        popt, pcov = curve_fit(three_1d_gaussian_func, interpolated_angles,
+                                interpolated_row,p0 = initialise_three, maxfev=1000000000)
+        # Fitted Data
+        y_fit = three_1d_gaussian_func(interpolated_angles, popt[0], 
+                    popt[1], popt[2], popt[3], popt[4], popt[5], 
+                    popt[6], popt[7], popt[8])
+        
+        # Figure (of curve fit)
+
+        fig = pyplot.figure()
+        ax = fig.add_subplot(111)
+        ax.scatter(interpolated_angles,interpolated_row)
+        ax.plot(interpolated_angles, y_fit, label= '3 gaussian fit')
+        ax.legend()
+        
+        # Output image filename        
+        filename='{}_multi_gaussian_fit.png'.format(residue)
+            
+        # output directory
+        out_dir_fit = os.path.join(out_dir,'Three_Gaussian_fit')
+        if not os.path.isdir(out_dir_fit):
+            os.makedirs(out_dir_fit)
+
+        fig.savefig(os.path.join(out_dir_fit,filename))
+        pyplot.close()
+        
+        break    
+        #from IPython import embed; embed() 
+
 
 #For allowing command manager 
 if __name__ == '__main__':
