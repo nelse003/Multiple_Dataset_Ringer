@@ -6,6 +6,7 @@
 ##############################################################################
 import os, sys, copy, glob
 import shutil
+import time
 import pandas
 import libtbx.phil
 import scipy.stats as stats
@@ -18,15 +19,17 @@ from matplotlib import pyplot
 pyplot.style.use('ggplot')
 ##################################
 
-from scipy.cluster.hierarchy import linkage
-from scipy.cluster.hierarchy import fcluster    
-from scipy.cluster.hierarchy import dendrogram
+from scipy.cluster.hierarchy import linkage, fcluster, dendrogram, fclusterdata
 from scipy.stats import entropy
 from scipy.spatial.distance import euclidean as euclidean
 
 # Package for Non linear least squares curve fitting 
 from scipy.optimize import curve_fit
-         
+# Package for RMSD
+from sklearn.metrics import mean_squared_error
+# Package for getting summary from crystal (mtz): resolution
+from giant.xray.data import CrystalSummary
+# For command manager         
 from bamboo.common.command import CommandManager
 
 ###############################################################################
@@ -57,14 +60,37 @@ settings {
     angle_sampling = 2
         .type = int
         .multiple = False
+
+    gen_heatmap = False
+        .type = bool
+        .multiple = False
 }
 """)
 
-############################################################################################
+###############################################################################
+# Logging
+###############################################################################
+import logging
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+fh = logging.FileHandler('ringer_script.log')
+fh.setLevel(logging.DEBUG)
+fh.setFormatter(formatter)
+logger.addHandler(fh)
+
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+ch.setFormatter(formatter)
+logger.addHandler(ch)
+
+##########################################################################################
 #                                   FUNCTIONS                                              #
 ############################################################################################
 
-def process_with_ringer(pdb, mtz, angle_sampling, output_dir=None, output_base=None):
+def process_with_ringer(pdb, mtz, angle_sampling,resolution_csv_path,output_dir=None, 
+                        output_base=None):
     """Analyse a pdb-mtz pair with mmtbx.ringer"""    
     
     assert os.path.exists(pdb), 'PDB File does not exist'
@@ -86,7 +112,7 @@ def process_with_ringer(pdb, mtz, angle_sampling, output_dir=None, output_base=N
     # Only run if results don't already exist
     if not os.path.exists(output_csv):
         # Initialise and populate command object
-        ringer = CommandManager(program='/usr/local/phenix/phenix-1.9-1682/build/intel-linux-2.6-x86_64/bin/mmtbx.ringer')
+        CommandManager(program='/usr/local/phenix/phenix-1.9-1682/build/intel-linux-2.6-x86_64/bin/mmtbx.ringer')
         ringer.add_command_line_arguments(pdb, mtz)
         ringer.add_command_line_arguments('sampling_angle={}'.format(angle_sampling))
         ringer.add_command_line_arguments('output_base={}'.format(os.path.join(output_dir, output_base)))
@@ -100,17 +126,23 @@ def process_with_ringer(pdb, mtz, angle_sampling, output_dir=None, output_base=N
     output_csv = os.path.join(output_dir, output_base+'.csv')
     assert os.path.exists(output_csv), 'Ringer output CSV does not exist: {}'.format(output_csv)
 
-    return output_csv
+    resolution = 0
+    #Only run if resolution csv does not exist
+    if not os.path.exists(resolution_csv_path):
+        crystal_summary = CrystalSummary.from_mtz(mtz)
+        resolution = crystal_summary.high_res    
+    
+    return output_csv, resolution
 
 def normalise_and_sort_ringer_results(current_dataset_results,params):
     """Sorts ringer results by angle"""
      #Extract from current residue in dataset
-    residue = current_dataset_results.index[0]
+    residue = current_dataset_results.index[0]    
     start_ang  = current_dataset_results.values[0,2]
     ang_rel = params.settings.angle_sampling*current_dataset_results.columns.values[3:]-3
     map_values = current_dataset_results.values[0,3:]
 
-    print 'Showing data for {}'.format(residue)
+    logger.info('Showing data for {}'.format(residue))
     # Set angles
     ang = (start_ang+ang_rel)%360
    
@@ -150,8 +182,6 @@ def multiple_line_plot_ringer(all_data_list,title, filename, out_dir):
 
 def linear_interpolate_ringer_results(sorted_angles,sorted_map_values,angle_sampling):
     """ Interpolate ringer results to run across same angle range """
-    # Import numpy for interpolation routines
-    import numpy
 
     # Extend the map values, and angles to include the first element at end 
     # (over 360 deg),and the last elment at the start (below 0 deg)
@@ -167,52 +197,70 @@ def linear_interpolate_ringer_results(sorted_angles,sorted_map_values,angle_samp
     # interpolate
     interpolated_map_values = numpy.interp(interpolated_angles,sorted_angles,sorted_map_values) 
 
+    # Offset to set peaks [60,180,300]
+    offset_map_values_end = interpolated_map_values[150:]
+    offset_map_values_start = interpolated_map_values[0: 150]
+    interpolated_map_values = numpy.concatenate((offset_map_values_end,
+                                               offset_map_values_start))
+
     return (interpolated_angles,interpolated_map_values)
 
-
 ###############################################################################
-# Functions for correlation coefficents & clustering
+# Functions for generating correlation coefficents, and analysing pairwise 
+# relationshps & clustering
 ###############################################################################
-def correlation_single_residue(input_csv,residue,output_dir):
+def correlation_single_residue(input_csv,residue,output_dir,params):
     """Generate correlation matrix as csv"""    
-    
-    data = pandas.read_csv(input_csv)
-    # Allocate array to store map values across datasets. Removing one from 
-    # number of columns due to dataset name stored with map values
-    all_map_values=numpy.zeros((len(data.values),len(data.columns)-1))
-    dataset_labels=[]
-    
-    # Extract map values and dataset labels from Pandas import of CSV 
-    for i in range(0,len(data.values)):
-        dataset_labels.append(data.values[i,0])
-        map_values = data.values[i,1:]  
-        all_map_values[i]=map_values
+    # read in csv 
+    data = pandas.read_csv(input_csv,index_col=0)
+    assert (len(data) == len(params.input.dir)),(
+           'Input CSV data is length {} for {} datasets.'
+           'Lengths should match'.format(len(data)+1,len(params.input.dir)))
+
+    dataset_labels=data.index.values
+    all_map_values=data.values   
+ 
     # Generate correlation coefficents
     correlation_matrix = numpy.corrcoef(all_map_values)
     # Store in labelled data frame
     correlation_data = pandas.DataFrame(correlation_matrix, index = dataset_labels, columns = dataset_labels)
     # Correlation data as CSV 
-    filename='{}-from {} datasets-correlation-ringer.csv'.format(residue,len(data.values)) 
-    correlation_csv = correlation_data.to_csv(os.path.join(output_dir,filename))
+    filename='{}_from {} datasets-correlation-ringer.csv'.format(residue,len(data.values)) 
+    correlation_data.to_csv(os.path.join(output_dir,filename))
 
-    return correlation_csv
-
-def pairwise_heatmap(pairwise_csv, residue, out_dir, pairwise_type, min_scale = -1 , max_scale = 1):
+def pairwise_heatmap(pairwise_csv, residue, out_dir,pairwise_type,
+                     params, plot_filename,fit_type='', subset='', min_scale = -1 , 
+                     max_scale = 1):
     """Plot heatmap from csv file with pairwise comparisons between datasets"""
     
     # Load csv into pandas DataFrame
     data = pandas.read_csv(pairwise_csv, index_col=0)
+    assert (len(data) == len(params.input.dir)),(
+           'Input CSV data is length {} for {} datasets.'
+           'Lengths should match'.format(len(data)+1,len(params.input.dir)))
+
     dataset_labels = data.columns.values
     
-    # Make figure & plot: scale minimum to minimum across all datasets
+    # Make figure & plot: scale minimum & maximum to minimum across all datasets
     fig, ax = pyplot.subplots()
     heatmap= ax.pcolor(data.values,cmap='RdBu',vmin = min_scale,vmax = max_scale)
    
-    pyplot.title('{}'.format(residue),fontsize=300)
+    # Set title font size
+    title_font_size = 1.2*int(len(params.input.dir))
+    if title_font_size < 15:
+        title_font_size =15
+
+    # Scale title fontsize to numbe of datasets
+    pyplot.title('{}'.format(residue),fontsize=title_font_size)
  
     # Format
     fig = pyplot.gcf()
-    fig.set_size_inches(200,200)
+    # Scale image size to dataset (with a minimum size)
+    image_size = 0.8*int(len(params.input.dir))
+    if image_size < 12:
+        image_size = 12
+
+    fig.set_size_inches(image_size,image_size)
     
     #Turn off the frame
     ax.set_frame_on(False)
@@ -230,13 +278,84 @@ def pairwise_heatmap(pairwise_csv, residue, out_dir, pairwise_type, min_scale = 
     # Rotate x ticks
     pyplot.xticks(rotation=90)
     
+    #set axis font size
+    axis_font_size = 0.4*len(params.input.dir)
+    if axis_font_size < 15:
+        axis_font_size = 15                       
+
     # Colourbar
     cbar = fig.colorbar(heatmap,shrink=0.5)
-    cbar.ax.tick_params(labelsize=100)
-    cbar.set_label('Pairwise'.format(pairwise_type),rotation=270,fontsize=100)
+    cbar.ax.tick_params(labelsize= axis_font_size)
+    cbar.set_label('Pairwise_{}'.format(pairwise_type),rotation=270,fontsize = axis_font_size, labelpad = 40)
     #Output file
-    filename = "{}_Pairwise_{}.png".format(residue,pairwise_type)
+    filename = "{}_{}_{}_{}_heatmap.png".format(residue,pairwise_type,fit_type,subset)
     pyplot.savefig(os.path.join(out_dir,residue,filename))     
+    pyplot.close(fig)    
+
+def cluster_heatmap(input_csv, out_dir, pairwise_type,fit_type, subset):
+    """Plot heatmap from csv file with pairwise comparisons between datasets"""
+    
+    # Load csv into pandas DataFrame
+    data = pandas.read_csv(input_csv, index_col=0)
+
+    dataset_labels = data.columns.values
+    residue_labels = data.index.values
+
+    # Make figure & plot: scale minimum & maximum to minimum across all datasets
+    fig, ax = pyplot.subplots()
+    heatmap= ax.pcolormesh(data.values,cmap='binary',vmin = 0,vmax = 1)
+   
+    # Set title font size
+    title_font_size = 1.2*int(len(data.columns.values))
+    if title_font_size < 15:
+        title_font_size =15
+
+    # Scale title fontsize to numbe of datasets
+    pyplot.title('Cluster weights',fontsize=title_font_size)
+    pyplot.xlabel('Datasets',fontsize=title_font_size)
+    pyplot.ylabel('Residues', fontsize=title_font_size) 
+
+    # Format
+    fig = pyplot.gcf()
+    # Scale image width to dataset (with a minimum size)
+    image_width = 0.8*int(len(data.columns.values))
+    if image_width < 12:
+        image_width = 12
+
+    # Scale image height to dataset (with a minimum size)
+    image_height = 0.8*int(len(data.index.values))
+    if image_height < 12:
+        image_height = 12
+    fig.set_size_inches(image_width,image_height)
+    
+    #Turn off the frame
+    ax.set_frame_on(False)
+
+    # Set tick positions
+    ax.set(xticks=numpy.arange(len(dataset_labels))+0.5,xticklabels=dataset_labels,yticks = numpy.arange(len(residue_labels))+0.5,yticklabels=residue_labels)      #ax.set_xticks()
+
+    #Set a table like display
+    ax.invert_yaxis()
+ 
+    # Set labels
+    column_labels=dataset_labels
+    row_labels=residue_labels
+    
+    # Rotate x ticks
+    pyplot.xticks(rotation=90)
+    
+    #set axis font size
+    axis_font_size = 0.4*len(data.columns.values)
+    if axis_font_size < 15:
+        axis_font_size = 15                       
+
+    # Colourbar
+    cbar = fig.colorbar(heatmap,shrink=0.5)
+    cbar.ax.tick_params(labelsize= axis_font_size)
+    cbar.set_label('Cluster weight',rotation=270,fontsize = axis_font_size)
+    #XXX Output file
+    filename = "Adj_cluster_weight_heatmap_{}_{}_{}.png".format(pairwise_type,fit_type,subset)
+    pyplot.savefig(os.path.join(out_dir,filename))     
     pyplot.close(fig)    
 
 def find_pairwise_range(pairwise_csv_end,ref_set,out_dir,params):
@@ -251,6 +370,9 @@ def find_pairwise_range(pairwise_csv_end,ref_set,out_dir,params):
 
         # Load csv into pandas DataFrame
         data = pandas.read_csv(os.path.join(out_dir,residue,pairwise_csv), index_col=0)
+        assert (len(data) == len(params.input.dir)),(
+           'Input CSV data is length {} for {} datasets.'
+           'Lengths should match'.format(len(data)+1,len(params.input.dir)))
 
         dataset_labels = data.columns.values
         
@@ -273,83 +395,467 @@ def augmented_dendrogram(*args, **kwargs):
                          va='top', ha='center')
     return ddata
 
-def cluster_single_residue(pairwise_csv,residue,out_dir,pairwise_type):
-    """ Hierarchal clustering on pairwise matrix """
+def generate_linkage_matrix(pairwise_csv,params):
+    """ Generate Linkage matrix """
 
     # Load csv into pandas DataFrame
     data = pandas.read_csv(pairwise_csv, index_col=0)
     dataset_labels = data.columns.values
 
+    assert (len(data) == len(params.input.dir)),(
+           'Input CSV data is length {} for {} datasets.' 
+           'Lengths should match'.format(len(data)+1,len(params.input.dir))) 
+
     # Generate linkage matrix 
     linkage_matrix = linkage(data.values, "single")
-        
-    # Cluster selection
-    #fcluster(linkage_matrix, 1)
- 
+    
+    return linkage_matrix, dataset_labels
+
+def plot_dendrogram(linkage_matrix,out_dir,residue,pairwise_type,plot_filename,
+                    dataset_labels):    
     # Plotting dendorgram
     pyplot.figure(figsize=(10,10))
     pyplot.clf()
-    ddata = augmented_dendrogram(linkage_matrix,color_threshold=1,p=15,truncate_mode='lastp',labels=dataset_labels)
+    ddata = augmented_dendrogram(linkage_matrix,color_threshold=1,p=15,
+                                truncate_mode='lastp',labels=dataset_labels)
     pyplot.gcf().subplots_adjust(bottom=0.25)
     pyplot.xticks(rotation=90)
     pyplot.title("{} {} Dendrogram".format(residue,pairwise_type))
     pyplot.ylabel("Cophenetic distance")
-    plot_filename = "{}_{}_dendrogram.png".format(residue,pairwise_type)
     pyplot.savefig(os.path.join(out_dir,residue,plot_filename))
     pyplot.close()    
- 
-    # Getting labels for singletons from dendrogram
-    cluster_leaves = ddata.get('ivl')
-    regex=re.compile('\(.')
-    #singletons = filter(lambda i: not regex.search(i), cluster_leaves) 
-    singletons = [i for i in cluster_leaves if not regex.search(i)]
-    #Get maximal cophenetic distance
-    maximal_cophenetic = ddata.get('dcoord')[-1][1]
+
+
+def correlation_coefficent_clustering(ref_set,out_dir,map_type,angle_type,params,pairwise_type):
     
-    return maximal_cophenetic    
-
-def correlation_coefficent_clustering(ref_set,out_dir,map_type,angle_type,params):
-
-    # TODO Send to file, so this doesn't run every rub
-    # Find miminum value in correlation_plots
-    correlation_csv_end ='from {} datasets-correlation-ringer.csv'.format(len(data.values))
-    min_corr, max_corr = find_pairwise_range(correlation_csv_end,ref_set,out_dir,params)
-    
-    # DataFrame to store max_cophenetic distance
-    max_coph=[]
-
     # Calculate correlation coefficents and cluster for single residues    
     for residue, data in ref_set.iterrows():
-        out_dir_residue=os.path.join(out_dir,residue)
 
         interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue,len(params.input.dir),map_type,angle_type)
-        input_csv = os.path.join(out_dir_residue,interpolate_csv)
+        input_csv = os.path.join(out_dir,residue,interpolate_csv)
         
-        correlation_csv='{}-from {} datasets-correlation-ringer.csv'.format(residue,len(params.input.dir))
+        correlation_csv='{}_from {} datasets-correlation-ringer.csv'.format(residue,len(params.input.dir))
 
-        if not os.path.exists(os.path.join(out_dir_residue,correlation_csv)):
-            correlation_data = correlation_single_residue(input_csv,residue,out_dir_residue)
+        if not os.path.exists(os.path.join(out_dir,residue,correlation_csv)):
+            correlation_single_residue(input_csv,residue,os.path.join(out_dir,residue),params=params)
+       
         else:
-            print'{}: Correlation CSV already generated, for these {} datasets'.format(residue,len(params.input.dir))
-        # print correlation heatmap 
-        correlation_input_csv = os.path.join(out_dir_residue,correlation_csv) 
-        if not os.path.exists(os.path.join(out_dir_residue,"{}_Pairwise_{}.png".format(residue,pairwise_type))):    
-            pairwise_heatmap(correlation_input_csv,residue,out_dir_residue, pairwise_type='correlation', min_scale = min_corr)
-        else:
-            print '{}: Correlation Heatmap already generated, for these {} datasets'.format(residue,len(params.input.dir))       
+            logger.info('{}: Correlation CSV already generated, for these {} datasets'.format(residue,len(params.input.dir)))
+    
+    # TODO Send to file, so this doesn't run every rub
+    # Find miminum value in correlation_plots
+    correlation_csv_end ='_from {} datasets-correlation-ringer.csv'.format(len(params.input.dir))
+    min_corr, max_corr = find_pairwise_range(correlation_csv_end,ref_set,out_dir,params)
+   
+    hier_agg_cluster(correlation_csv_end, pairwise_type = 'correlation',
+                    ref_set = ref_set ,out_dir = out_dir, params = params)
+ 
+    
+###############################################
+# Functions for Gaussian curves to fit data
+###############################################
+# Single gaussain to fit data to (3 parameters)
+def single_gaussian(x,a,x0,sigma):
+    return a*numpy.exp(-(x-x0)**2/(2*sigma**2))
 
-        #Hierachical clustering across one residue
-        plot_filename = "{}_correlation_dendrogram.png".format(residue)
-        #if not os.path.exists(os.path.join(out_dir_residue,plot_filename)):
-        max_cophenetic = cluster_single_residue(os.path.join(out_dir_residue,
-                         correlation_csv),residue,out_dir_residue,pairwise_type = 'correlation')
-        #else:
-        #    print '{}: Correlation dendrogram already generated for these {} datasets'.format(residue,len(params.input.dir))
-        #max_coph.append([residue,max_cophenetic])
+# Three gaussian curve with offset (10 parameters)
+def three_gaussian_offset(x,a1,x01,sigma_1,a2,x02,sigma_2,
+                          a3,x03,sigma_3,offset):
+    return (single_gaussian(x,a1,x01,sigma_1)
+           + single_gaussian(x,a2,x02,sigma_2)
+           + single_gaussian(x,a3,x03,sigma_3)
+           + offset )
+
+# Three gaussian curve,fixed means [60,180,300] with offset, 
+# to fit data to (7 parameters)
+def three_gaussian_fix(x,a1,sigma_1,a2,sigma_2,a3,sigma_3,offset):
+    return three_gausian_offset(x,a1,60,sigma_1,a2,180,sigma_2,
+                                a3,300,sigma_3,offset)
+                                                         
+ # Three normal curves,fixed means [60,180,300] with offset, 
+ # to fit data to (4 parameters)
+def three_normal_fix(x,sigma_1,sigma_2,sigma_3,offset):
+    amplitude = 1.0/math.sqrt((2*sigma_1**2)*math.pi)
+    return three_gaussian_fix(x,amplitude,sigma_1,amplitude,sigma_2,amplitude,sigma_3,offset)
+
+#########################################################
+
+def calculate_euclidean_distance(out_dir,ref_set,params,fit_type,subset=None):
+    '''Calculates and store pairwise euclidean distances''' 
+    euclidean_base_csv = 'euclidean_distances_from_{}_datasets_{}'.format(len(params.input.dir), fit_type)
+    # Selecting a subset of parameters to perform clustering on
+    if subset is not None:
+        # set pairwise type so output filename changes 
+        euclidean_base_csv = euclidean_base_csv.rsplit('.')[0] + subset + '.csv'
     
-   # max_coph_df=pandas.DataFrame(max_coph)    
-   # max_coph_df.to_csv('test.csv')
+    for residue, data in ref_set.iterrows():
+        euclidean_csv='{}'.format(residue) + euclidean_base_csv    
+       
+        if not os.path.exists(os.path.join(out_dir,residue,euclidean_csv)):
+            start=time.time()
+            # Read data from csv
+            parameters_csv_filename = '{}_from_{}_datasets_{}.csv'.format(
+                                      residue,len(params.input.dir),fit_type)
+            fit_parameters=pandas.read_csv(os.path.join(out_dir,residue,parameters_csv_filename),     
+                                  index_col=0, header=0)
+            
+            assert (len(fit_parameters) == len(params.input.dir)),(
+                    'Input CSV data is length {} for {} datasets.'
+                    'Lengths should match'.format(len(fit_parameters)+1,len(params.input.dir)))
+
+            euclidean_distance=pandas.DataFrame(index=fit_parameters.index, columns=fit_parameters.index)
+            
+            if subset == 'Amplitudes':
+                fit_parameters = fit_parameters[['a1','a2','a3']]
+            elif subset == 'Amplitudes_Means':
+                fit_parameters = fit_parameters[['a1','a2','a3','mean_1','mean_2','mean_3']]
+            else:
+                logger.warning('Incorrect indentiifier for subset of parameters on which to perform clustering')
+            
+            #Calcualte euclidean distances 
+            for dataset_col in fit_parameters.index:
+                for dataset_row in fit_parameters.index:
+                    euclidean_distance.loc[dataset_col][dataset_row] = euclidean(fit_parameters.loc[dataset_col].values,fit_parameters.loc[dataset_row].values)
+            
+            # Output CSV
+            euclidean_distance.to_csv(os.path.join(out_dir,residue,euclidean_csv))
+            end=time.time()
+            duration=end-start
+            
+            logger.info('{}: Euclidean distance for {} datasets in {} seconds'.format(residue,len(params.input.dir),duration))
+        else:
+            logger.info('{}: Euclidean distance already calculated for these {} datasets'.format(residue,len(params.input.dir)))
+    return euclidean_base_csv
+        
+
+def fit_all_datasets(out_dir,ref_set,map_type,angle_type,params,pairwise_type,
+                    fit_type = 'three_gaussian_offset', subset= None, 
+                    mean_bound = None):
+    '''Non Linear Least squares fitting routine, single & multiple gaussian''' 
+    ###########################################################################
+    # Output: CSV file with fit parameters (one file per residue) 
+    #         Images of the fitting (One per dataset per residue)  
+    ###########################################################################
     
+    for residue, data in ref_set.iterrows():
+        parameters_csv_filename='{}_from_{}_datasets_{}.csv'.format(residue,
+                                len(params.input.dir),fit_type)
+        if not os.path.exists(os.path.join(out_dir,residue,parameters_csv_filename)): 
+            start =time.time()                                                                          
+            # Reading in interpolated angle data
+            interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue,len(params.input.dir),map_type,angle_type)
+            interpolated_results=pandas.read_csv(os.path.join(out_dir,residue,interpolate_csv), index_col=0)
+           
+            assert (len(interpolated_results) == len(params.input.dir)),(
+                   'Input CSV data is length {} for {} datasets.'
+                    'Lengths should match'.format(len(interpolated_results)+1,len(params.input.dir)))
+
+    
+            # select fit type
+            if fit_type in ('three_gaussian_offset',
+                            'positive_amplitude_three_gaussian_offset'):
+                # Dataframe to store parameters for multiple datasets
+                fit_parameters=pandas.DataFrame(columns=['a1','mean_1','sigma_1',
+                            'a2','mean_2','sigma_2','a3','mean_3','sigma_3','offset'])
+            
+                initialise_three=[3,60,10,3,180,10,3,300,10,-1]
+            elif fit_type == 'three_gaussian_fix':
+                # Dataframe to store parameters for multiple datasets
+                fit_parameters=pandas.DataFrame(columns=['a1','sigma_1','a2',
+                               'sigma_2','a3','sigma_3','offset'])
+                intialise_three=[3,10,3,10,10,-1]
+            else:
+                logger.info('fit_type is not a specified fit type')
+                
+            # Initial parameter to be used in first instance only      
+            initialised = False
+
+            
+            # Bounds for means for three gaussian offset
+            if mean_bound is not None:
+                bounds = ([-numpy.inf,60-mean_bound,-numpy.inf,
+                           -numpy.inf,180-mean_bound,-numpy.inf,
+                           -numpy.inf,300-mean_bound,-numpy.inf,
+                           -numpy.inf],
+                          [numpy.inf,60+mean_bound,numpy.inf,
+                           numpy.inf,180+mean_bound,numpy.inf,
+                           numpy.inf,300+mean_bound,numpy.inf,
+                           numpy.inf])
+            else:
+                bounds = (-numpy.inf,numpy.inf)
+
+            for dataset in interpolated_results.index:
+                
+                interpolated_row = interpolated_results.loc[dataset].values            
+                interpolated_angles = interpolated_results.columns.values.astype(int)            
+
+                # Extending the data
+                #interpolated_row_ext = numpy.concatenate((interpolated_row,interpolated_row,interpolated_row))
+                #interpolated_angles_ext = numpy.concatenate((interpolated_angles-360,interpolated_angles,interpolated_angles+360))
+
+                # Non linear least sqaures Curve fit on data:
+                # popt returnd best fit values for parameters of the model
+                # pcov contains covariance matrix for the fit
+                if fit_type == 'three_gaussian_offset':
+                    popt, pcov = curve_fit(three_gaussian_offset, interpolated_angles,
+                                           interpolated_row, p0 = initialise_three,
+                                           ftol=1e-4, bounds = bounds)
+                    y_fit = three_gaussian_offset(interpolated_angles, popt[0],popt[1], 
+                                         popt[2], popt[3], popt[4], popt[5],
+                                         popt[6], popt[7], popt[8], popt[9])
+                if fit_type == 'three_gaussian_fix':
+                    popt, pcov = curve_fit(three_gaussian_fix, interpolated_angles,
+                                           interpolated_row, p0 = initialise_three,
+                                           ftol=1e-4)
+                    y_fit = three_gaussian_offset(interpolated_angles, popt[0],popt[1], 
+                                         popt[2], popt[3], popt[4], popt[5], popt[6])
+                if fit_type == 'positive_amplitude_three_gaussian_offset':
+                    # Set Amplitude lower bounds to zero
+                    bounds[0][0]=0;bounds[0][3]=0;bounds[0][6]=0
+                    # Run fit
+                    popt, pcov = curve_fit(three_gaussian_offset, interpolated_angles,
+                                           interpolated_row, p0 = initialise_three,
+                                           ftol=1e-4, bounds = bounds)
+                    # Fitted Data
+                    y_fit = three_gaussian_offset(interpolated_angles, popt[0],popt[1],
+                                         popt[2], popt[3], popt[4], popt[5],
+                                         popt[6], popt[7], popt[8], popt[9])
+
+
+                # Set Inital parameters to the first fit for all other fits    
+                if not initialised:
+                    intialise_three=popt
+                    initialised = True
+
+                # Figure (of curve fit)
+                fig = pyplot.figure()
+                ax = fig.add_subplot(111)
+                ax.scatter(interpolated_angles,interpolated_row)
+                ax.plot(interpolated_angles, y_fit, label= '3 gaussian fit')
+                pyplot.xlabel('Angle:{}'.format(angle_type))
+                pyplot.ylabel('Map Value:{}'.format(map_type))
+                pyplot.title('{} fit'.format(residue))
+                ax.legend()
+               
+                # CSV with parameters
+                if fit_type in ('three_gaussian_offset',
+                                'positive_amplitude_three_gaussian_offset'):
+                    fit_df=pandas.DataFrame(popt.reshape(1,10),columns=['a1',
+                            'mean_1','sigma_1','a2','mean_2','sigma_2','a3',
+                            'mean_3','sigma_3','offset'], index =[dataset])
+
+                if fit_type == 'three_gaussian_fix':
+                    fit_df=pandas.DataFrame(popt.reshape(1,7),columns=['a1',
+                            'sigma_1','a2','sigma_2','a3','sigma_3','offset']
+                            ,index =[dataset])
+
+                # Adding fit parameters to list for all datasets
+                fit_parameters = fit_parameters.append(fit_df)
+                fit_parameters.to_csv(os.path.join(out_dir,residue,parameters_csv_filename))
+                
+                # Output image filename        
+                filename='{}_{}_multi_gaussian_{}.png'.format(residue,dataset,fit_type)
+                
+                # output directory
+                fig.savefig(os.path.join(out_dir,residue,filename))
+                pyplot.close()
+
+            end=time.time()
+            duration = end-start
+            logger.info('{} fits for {} datasets in {} seconds'.format(residue,len(params.input.dir),duration))
+        else:
+            logger.info('{} Fitting already undertaken, for these {} datasets'.format(residue,len(params.input.dir)))
+
+def hier_agg_cluster(base_input_csv,pairwise_type,ref_set,out_dir,params,fit_type = '',
+                     subset =''):
+    
+    # Generate range over which metric ranges
+    min_range, max_range = find_pairwise_range(base_input_csv,ref_set,out_dir,params)
+    
+    num_cluster_all=[]
+    clusters_weight = pandas.DataFrame(index = ref_set.index.values , columns = params.input.dir)   
+    # XXX
+    clusters_weight_filename = 'Adj_clusters_weight_{}_{}_{}.csv'.format(pairwise_type, fit_type, subset)
+    for residue, data in ref_set.iterrows():
+        input_csv = '{}'.format(residue) + base_input_csv    
+        
+        incons_threshold = 3
+        depth = 10
+        # Generate Linkage matrix and dendrogram 
+        dendrogram_filename = '{}_{}_{}_{}_dendrogram.png'.format(residue,pairwise_type,fit_type,subset)
+        cluster_number_hist = 'number_cluster_{}_{}_{}_thres_{}_depth_{}.png'.format(
+                              pairwise_type,fit_type,subset,incons_threshold,depth)
+        linkage_matrix, dataset_labels = generate_linkage_matrix(os.path.join(out_dir,
+                                                 residue,input_csv),
+                                                 params=params)
+
+        if not os.path.exists(os.path.join(out_dir,residue,dendrogram_filename)):
+            start=time.time()
+            plot_dendrogram(linkage_matrix,out_dir,residue,pairwise_type,
+                            dendrogram_filename, dataset_labels= dataset_labels) 
+            end= time.time()
+            duration = end-start
+            logger.info('{}: Dendrogram ({}) for {} datasets generated in {} seconds.'.format(
+                        residue,pairwise_type,len(params.input.dir),duration))
+        else:     
+            logger.info('{}: Dendrogram already generated for {} with {}'.format(residue, pairwise_type,fit_type))
+        
+        #######################################################################
+        # Clustering using inconsitency matrix.
+        # Generates a weight for each residue dataset pair, 
+        # given by 1/(cluster size)
+        #####################################################################
+        if not os.path.exists(os.path.join(out_dir,clusters_weight_filename)):
+    
+            cluster_groups = fcluster(linkage_matrix,incons_threshold,depth = depth)
+            clusters = pandas.DataFrame(data = cluster_groups,index =params.input.dir)
+            clusters.columns = ['Cluster_number']
+            number_of_clusters = clusters.values.max()
+            # group into clusters
+            grouped = clusters.groupby('Cluster_number')
+            
+            # look at cluster with less than 20 members
+            #small_clusters = grouped.filter(lambda x: len(x) < 20) 
+            num_cluster_all.append(number_of_clusters)
+            for i in range(1,number_of_clusters+1):
+                group_size = len(grouped.groups[i])
+                weight = 1/group_size
+                for j in range(0,group_size):
+                    #XXX
+                    clusters_weight.loc[residue:,grouped.groups[i][j]] = weight/number_of_clusters  
+        else:
+            logger.info('Cluster weights ({}) already generated'.format(pairwise_type))
+        
+        # Generate Heatmap
+        
+        heatmap_filename = '{}_{}_{}_{}_heatmap.png'.format(residue,pairwise_type,fit_type,subset)
+        if params.settings.gen_heatmap == True:
+            if not os.path.exists(os.path.join(out_dir,residue,heatmap_filename)):
+                start = time.time()
+                pairwise_heatmap(os.path.join(out_dir,residue,input_csv),residue = residue,
+                                out_dir = out_dir,pairwise_type = pairwise_type, 
+                                plot_filename = heatmap_filename, fit_type = fit_type,
+                                max_scale = max_range, min_scale = min_range,params = params)
+                end = time.time()
+                duration = end-start
+                logger.info('{}: Heatmap ({} with {}) for {} datasets generated in {} seconds.'.format(
+                            residue,pairwise_type,fit_type,len(params.input.dir)
+                            ,duration))
+            else:
+                logger.info('{}: Heatmap already generated for {} with {} and {}'.format(residue, pairwise_type,fit_type, subset))
+        else:
+            logger.info('Skip Heatmap')
+
+    # Send cluster weights to file
+    if not os.path.exists(os.path.join(out_dir,clusters_weight_filename)):
+        clusters_weight.to_csv(os.path.join(out_dir,clusters_weight_filename))
+
+    if not os.path.exists(os.path.join(out_dir,cluster_number_hist)):
+        #Histogram of number of clusters
+        n, bins, patches= pyplot.hist(num_cluster_all)
+        pyplot.xlabel('Number of clusters')
+        pyplot.ylabel('Frequency')
+        pyplot.savefig(os.path.join(out_dir,cluster_number_hist))
+        pyplot.close()
+
+def generate_RMSD(out_dir,ref_set,map_type,angle_type,fit_type,
+                  fit_base_filename,params):
+
+    # Dataframe to store all RMSD values
+    all_RMSD = pandas.DataFrame(index=params.input.dir, columns=ref_set.index.values)
+    RMSD_filename = 'RMSD, with {}.csv'.format(fit_type)
+
+    if not os.path.exists(os.path.join(out_dir,RMSD_filename)):
+        for residue, data in ref_set.iterrows():
+        
+            fit_filename = residue + fit_base_filename        
+
+            # Pandas Dataframe for RMSD        
+            RMSD_results = pandas.DataFrame(columns=['RMSD'])
+
+            # Retrieve list of datasets
+            interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue,
+                              len(params.input.dir),map_type,angle_type)
+            interpolated_results = pandas.read_csv(os.path.join(out_dir,residue,
+                                                   interpolate_csv), index_col=0)
+            interpolated_angles = interpolated_results.columns.values.astype(int)            
+            # Read in fit parameters
+            fit_parameters = pandas.read_csv(os.path.join(out_dir,residue,
+                                            fit_filename),header = 0,index_col = 0) 
+            for dataset in interpolated_results.index:
+                # fit parameters
+                current_fit = fit_parameters.loc[dataset]    
+                
+                # map value data that was fitted
+                y = interpolated_results.loc[dataset].values
+
+                # Turn fit parameters into fitted values for eacg fit type
+                if fit_type in ('three_gaussian_offset',
+                                'positive_amplitude_three_gaussian_offset'):
+                    y_fit = three_gaussian_offset(interpolated_angles,current_fit[0],
+                                                  current_fit[1], current_fit[2],
+                                                  current_fit[3], current_fit[4],
+                                                  current_fit[5], current_fit[6],
+                                                  current_fit[7], current_fit[8],
+                                                  current_fit[9])
+                    
+                elif fit_type == "three_gaussian_fix":
+                    y_fit = three_gaussian_fix(interpolated_angles,current_fit[0],
+                                                  current_fit[1], current_fit[2],
+                                                  current_fit[3], current_fit[4])
+                else:
+                    logger.warning("Fit type not recongised")
+
+                # Generate RMSD between fit and data
+                RMSD=mean_squared_error(y,y_fit)**0.5
+                # RMSD check
+                c=y_fit-y
+                d=c.dot(c)/len(c)
+                output=d**0.5
+                numpy.testing.assert_almost_equal(output,RMSD,decimal=7,
+                              err_msg="RMSD not calculated correctly")               
+ 
+                RMSD_result=pandas.DataFrame(data = RMSD, index = [dataset],
+                                                columns =['RMSD']) 
+                RMSD_results = RMSD_results.append(RMSD_result)
+
+            all_RMSD.loc[:,residue]= RMSD_results.values 
+        # Store RMSD for all residues
+        all_RMSD.to_csv(os.path.join(out_dir,RMSD_filename))
+
+    ###########################################################################
+    # RMSD histogram
+    ###########################################################################
+    RMSD_hist_filename = "RMSD_hist_{}.png".format(fit_type)
+    # If all_RMSD is null, i.e. the earlier part of function has not run this 
+    # instance, due to file already existing
+    if pandas.isnull(all_RMSD).any().any():
+        all_RMSD = pandas.read_csv(os.path.join(out_dir,RMSD_filename),
+                                   header =0, index_col =0)    
+    if not os.path.exists(os.path.join(out_dir,RMSD_hist_filename)):
+        
+        fig, ax =pyplot.subplots(figsize=(10,7.5))
+        
+        bins = numpy.arange(0,1.05,0.05)
+        counts, bins, patches = pyplot.hist(numpy.clip(numpy.concatenate(
+                                            all_RMSD.values),bins[0],bins[-1]),
+                                            bins=bins)
+        # set xtick labels, to align with values clipped at 1.0
+        xticks =[str(b) for b in bins[1:]]
+        xticks[-1] = '>1.0'
+
+        num_ticks=len(xticks)
+        pyplot.xlim([0,1.05])
+        pyplot.xticks(0.05*numpy.arange(num_ticks)+0.025)
+        ax.set_xticklabels(xticks)
+    
+        pyplot.xlabel('RMSD {}  vs ringer data'.format(fit_type))
+        pyplot.ylabel('Frequency')
+        pyplot.savefig(os.path.join(out_dir,RMSD_hist_filename))
+        pyplot.close()
+    else:
+        logger.info('RMSD already generated for fit type: {}'.format(fit_type))
+
 ###############################################################################
 # Main program 
 ###############################################################################
@@ -361,9 +867,20 @@ def run(params):
     # datasets
     all_results = {}
 
+    # Create an output directory if it doesn't already exist 
+    out_dir = 'Processed_data'
+    if not os.path.isdir(out_dir):
+        os.makedirs(out_dir)
+    
+    # Resolution CSV filename & path
+    resolution_csv_path=os.path.join(out_dir,'dataset_resolution.csv')
+    # DataFrame to store resolution
+    dataset_resolution=pandas.DataFrame(index = params.input.dir , columns =['Resolution'])
+    
+    # Generate ringer results & resolution information
     for dir in params.input.dir:
         # Label the dataset by the directory name
-        label = os.path.basename(dir)
+        dataset_label = os.path.basename(dir)
         pdb = glob.glob(os.path.join(dir, params.input.pdb_style))
         mtz = glob.glob(os.path.join(dir, params.input.mtz_style))
         assert pdb, 'No PDB Files found in {} matching {}'.format(dir, params.input.pdb_style)
@@ -372,21 +889,33 @@ def run(params):
         mtz = mtz[0]
 
         # Process dataset with ringer and convert results to DataFrame
-        ringer_csv = process_with_ringer(pdb=pdb, mtz=mtz,angle_sampling=params.settings.angle_sampling, output_dir=dir)
+        ringer_csv, resolution = process_with_ringer(pdb=pdb,
+                                 mtz=mtz,angle_sampling=params.settings.angle_sampling,
+                                 output_dir=dir, resolution_csv_path=resolution_csv_path)
         ringer_results = pandas.DataFrame.from_csv(ringer_csv, header=None)
-        all_results[label] = ringer_results
-        
+
+        # Change order of residue name
+        for i in range(0,len(ringer_results.index)):
+            res_split = ringer_results.index.values[i].rsplit(' ')
+            res_split.remove('')
+            ringer_results.index.values[i] = res_split[2] + ' ' + res_split[0] + ' ' + res_split[1]    
+
+        all_results[dataset_label] = ringer_results
+        dataset_resolution.loc[dataset_label] = resolution
+    
+    # Resolution to CSV
+    if not os.path.exists(resolution_csv_path):
+        dataset_resolution.to_csv(resolution_csv_path)
+        logger.info('Resolution CSV generated')
+    else:
+        logger.info('Resolution CSV already generated')
+
     # Pull out the "first" ringer results set as a reference
     ref_set = all_results.values()[0]
 
     # Map and angle types currently selected to analyse
     map_type = '2mFo-DFc'
     angle_type = 'chi1'
-
-    # Create an output directory if it doesn't already exist 
-    out_dir = 'Processed_data'
-    if not os.path.isdir(out_dir):
-        os.makedirs(out_dir)
 
     #Choose a map_type/angle_type by reducing reference set
     ref_set=ref_set.loc[(ref_set[1] == map_type)]
@@ -397,22 +926,25 @@ def run(params):
        residue_data_list = []
         
         # Create ouput directories for each residue
-       out_dir_residue=os.path.join(out_dir,residue)
-       if not os.path.isdir(out_dir_residue):
-           os.makedirs(out_dir_residue)
+       if not os.path.isdir(os.path.join(out_dir,residue)):
+           os.makedirs(os.path.join(out_dir,residue))
         # Output filename for interpolated data 
         # (Used to check existence of output)
-       interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue,len(params.input.dir),map_type,angle_type)
-        
-       if not os.path.exists(os.path.join(out_dir_residue,interpolate_csv)):
+       interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue,len(params.input.dir),map_type,angle_type)       
+ 
+       if not os.path.exists(os.path.join(out_dir,residue,interpolate_csv)):
         
             # Iterate through the datasets
            for dataset_label, dataset_results in all_results.iteritems():
                  
                current_dataset_results = dataset_results.loc[(dataset_results.index == residue)]    
-
                sorted_angles, sorted_map_values = normalise_and_sort_ringer_results(current_dataset_results, params=params)
-               line_plot_ringer(sorted_angles, sorted_map_values, title=residue, filename='{}-{}.png'.format(residue, dataset_label),out_dir=out_dir_residue)
+               
+               # Line plot commented out as fitting plot displays same info
+        
+               #line_plot_ringer(sorted_angles, sorted_map_values, title=residue,
+               #                filename='{}-{}.png'.format(residue, dataset_label),
+               #                out_dir=os.path.join(out_dir,residue))
 
                interpolated_angles,interpolated_map_values = linear_interpolate_ringer_results(sorted_angles,sorted_map_values,angle_sampling=params.settings.angle_sampling)          
                 
@@ -428,181 +960,184 @@ def run(params):
 
             # Print results for all of the datasets for this residue in the same graph
             # Output CSV from one resiude, multiple datasets
-           multiple_line_plot_ringer(residue_data_list,title=residue, filename='all-{}-{}-dataset.png'.format(residue, len(residue_data_list)),out_dir=out_dir_residue)  
-           pandas.DataFrame.to_csv(single_residue_multiple_datasets,os.path.join(out_dir_residue,interpolate_csv))
+           multiple_line_plot_ringer(residue_data_list,title=residue,
+                   filename='all-{}-{}-dataset.png'.format(residue, len(residue_data_list)),
+                   out_dir=os.path.join(out_dir,residue))  
+           pandas.DataFrame.to_csv(single_residue_multiple_datasets,os.path.join(out_dir,residue,interpolate_csv))
        else:
-           print '{}:Interpolated CSVs already generated, for these {} datasets'.format(residue,len(params.input.dir))
+           logger.info('{}:Interpolated CSVs already generated, for these {} datasets'.format(residue,len(params.input.dir)))
 
-    
-    #Function that generates clustering coefficent clustering 
-    #correlation_coefficent_clustering(ref_set,out_dir,map_type,angle_type,params)
-    
-    #######################################################################
+    ###########################################################################
+    # Function that generates clustering coefficent clustering 
+    ###########################################################################
+    correlation_coefficent_clustering(ref_set,out_dir,map_type,angle_type,
+                                      params, pairwise_type='correlation')
+
+    ##########################################################################
+    # Generate heatmaps from clustering:Correlation
+    ###########################################################################
+    # XXX
+    clusters_weight_filename = 'Adj_clusters_weight_{}_{}_{}.csv'.format('correlation','','')
+    # XXX
+    if not os.path.exists(os.path.join(out_dir,
+        "Adj_cluster_weight_heatmap_{}_{}_{}.png".format('correlation','',''))):
+        
+        cluster_heatmap(os.path.join(out_dir,clusters_weight_filename),
+                    out_dir,pairwise_type = 'correlation',fit_type='',subset='')
+    ###########################################################################
     # Generating histogram to show the location of the maximal points 
-    # of peak in ringer plot. Shows three rotamer bins [0, 120, 240] 
-    #######################################################################
+    # of peak in ringer plot. Shows three rotamer bins [60, 180, 300] 
+    ###########################################################################
     
-    if os.path.exists(os.path.join(out_dir,'Modal_peak_location.png')):
+    if not os.path.exists(os.path.join(out_dir,'Modal_peak_location.png')):
 
         max_peak_angle=[]
         # Generate maximal values from interpolated map values
         for residue, data in ref_set.iterrows():
             interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue,len(params.input.dir),map_type,angle_type)
-            out_dir_residue=os.path.join(out_dir,residue)        
-            interpolated_results=pandas.read_csv(os.path.join(out_dir_residue,interpolate_csv), index_col=0)
+            interpolated_results=pandas.read_csv(os.path.join(out_dir,residue,interpolate_csv), index_col=0)
+            
+            assert (len(interpolated_results) == len(params.input.dir)),(
+                   'Input CSV data is length {} for {} datasets.'
+                   'Lengths should match'.format(len(interpoalted_results)+1,len(params.input.dir)))
 
             angle_with_max_map=(interpolated_results.idxmax(axis=1).values).astype(numpy.float)
             max_peak_angle.append(angle_with_max_map) 
         
         #Plot histogram
-        counts, bins, patches = pyplot.hist(numpy.concatenate(max_peak_angle,axis=0),bins=24, normed=True)
+        counts, bins, patches = pyplot.hist(numpy.concatenate(max_peak_angle,
+                                            axis=0),bins=24, normed=True)
         pyplot.xlabel('Angle')
         pyplot.ylabel('Relative frequency')
         pyplot.title('Angles with maximal map value')
         pyplot.savefig(os.path.join(out_dir,"Modal_peak_location"))
         pyplot.close()
     else:
-        print 'Histogram of peak angles exists'
-    
-    ###########################################################################
-    # Non Linear Least squares fitting routine, single & multiple gaussian. 
-    # Output: CSV file with fit parameters (one file per residue) 
-    #         Images of the fitting (One per dataset per residue)  
-    ###########################################################################
-
-    for residue, data in ref_set.iterrows():
-    
-        ###############################################
-        # Curves to fit data
-        ###############################################
-
-        # Single gaussain to fit data to (3 parameters)
-        def single_1d_gaussian_func(x,a,x0,sigma):
-            return a*numpy.exp(-(x-x0)**2/(2*sigma**2))
-
-        # Three gaussian curve to fit data to (9 parameters)
-        def three_1d_gaussian_func(x,a1,x01,sigma_1,a2,x02,sigma_2,a3,x03,sigma_3):
-            return (a1*numpy.exp(-(x-x01)**2/(2*sigma_1**2))+
-                       a2*numpy.exp(-(x-x02)**2/(2*sigma_2**2))+
-                       a3*numpy.exp(-(x-x03)**2/(2*sigma_3**2)))
-
-        # Three gaussian curve, with offset,  to fit data to (10 parameters)
-        def three_gaussian_offset(x,a1,x01,sigma_1,a2,x02,sigma_2,a3,x03,sigma_3,off):
-            return (a1*numpy.exp(-(x-x01)**2/(2*sigma_1**2))+
-                       a2*numpy.exp(-(x-x02)**2/(2*sigma_2**2))+
-                       a3*numpy.exp(-(x-x03)**2/(2*sigma_3**2))+off)
+        logger.info('Histogram of peak angles exists')
    
-        # Three gaussian curve,fixed means [0,120,240] with offset, 
-        # to fit data to (7 parameters)
-        def three_gaussian_fix(x,a1,sigma_1,a2,sigma_2,a3,sigma_3,off):
-            return (a1*numpy.exp(-(x%360)**2/(2*sigma_1**2))+
-                    a2*numpy.exp(-(x%360-120)**2/(2*sigma_2**2))+
-                    a3*numpy.exp(-(x%360-240)**2/(2*sigma_3**2))+off)
-                                                                 
-         # Three normal curves,fixed means [0,120,240] with offset, 
-         # to fit data to (4 parameters)
-        def three_normal_fix(x,sigma_1,sigma_2,sigma_3,off):
-            return ((1.0/math.sqrt((2*sigma_1**2)*math.pi))*numpy.exp(-(x)**2/(2*sigma_1**2))+
-                    (1.0/math.sqrt((2*sigma_2**2)*math.pi))*numpy.exp(-(x-120)**2/(2*sigma_2**2))+
-                    (1.0/math.sqrt((2*sigma_3**2)*math.pi))*numpy.exp(-(x-240)**2/(2*sigma_3**2))
-                        +off)
-                                                                                  
-        # Reading in interpolated angle data
-        interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue,len(params.input.dir),map_type,angle_type)
-        out_dir_residue=os.path.join(out_dir,residue)
-        interpolated_results=pandas.read_csv(os.path.join(out_dir_residue,interpolate_csv), index_col=0)
-        
-        # Dataframe to store parameter for multiple dtasets, single residue XXX
-        fit_parameters=pandas.DataFrame(columns=['a1','sigma_1','a2','sigma_2','a3','sigma_3','offset'])
+    ##########################################################################
+    # Curve Fitting routine for all datasets
+    ##########################################################################  
+    fit_type = 'three_gaussian_offset'
+    subset='Amplitudes'
+    pairwise_type = 'euclidean distance'
+    mean_bound = 20
+    fit_all_datasets(out_dir,ref_set,map_type,angle_type,
+                    params,pairwise_type,fit_type, mean_bound = mean_bound)
 
-        for dataset in interpolated_results.index:
-                 
-            interpolated_row = interpolated_results.values[0]            
-            interpolated_angles = interpolated_results.columns.values.astype(int)            
-
-            # Extending the data
-            #interpolated_row_ext = numpy.concatenate((interpolated_row,interpolated_row,interpolated_row))
-            #interpolated_angles_ext = numpy.concatenate((interpolated_angles-360,interpolated_angles,interpolated_angles+360))
-
-            # Initial parameter values for model fit XXX      
-            initialise_three=[3,30,3,30,3,30,-1]
-        
-            # Bounds (Added if updating scipy version)
-            #bounds_three=(-(numpy.inf),numpy.inf)
-
-            # Non linear least sqaures Curve fit on data:
-            # popt returnd best fit values for parameters of the model
-            # pcov contains covariance matrix for the fit XXX
-            popt, pcov = curve_fit(three_gaussian_fix, interpolated_angles,
-                                   interpolated_row, p0 = initialise_three ,  maxfev=1000000000)
-            # Fitted Data XXX
-            y_fit = three_gaussian_fix(interpolated_angles, popt[0],popt[1], 
-                                     popt[2], popt[3], popt[4], popt[5], popt[6])
-            
-            # Figure (of curve fit)
-            fig = pyplot.figure()
-            ax = fig.add_subplot(111)
-            ax.scatter(interpolated_angles,interpolated_row)
-            ax.plot(interpolated_angles, y_fit, label= '3 gaussian fit')
-            pyplot.xlabel('Angle:{}'.format(angle_type))
-            pyplot.ylabel('Map Value:{}'.format(map_type))
-            pyplot.title('{} fit'.format(residue))
-            ax.legend()
-           
-            # CSV with parameters XXX
-            fit_df=pandas.DataFrame(popt.reshape(1,7),columns=['a1','sigma_1',
-                                    'a2','sigma_2','a3','sigma_3','offset'], index =[dataset] )
-            fit_parameters = fit_parameters.append(fit_df)
-            parameters_csv_filename='{}_from_{}_datasets_Fit_parameters.csv'.format(residue,len(params.input.dir))
-            fit_parameters.to_csv(os.path.join(out_dir,residue,parameters_csv_filename))
-            
-            # Output image filename        
-            filename='{}_{}_multi_gaussian_fit.png'.format(residue,dataset)
-                
-            # output directory
-            fig.savefig(os.path.join(out_dir,residue,filename))
-            pyplot.close()
+    fit_base_filename = '_from_{}_datasets_{}.csv'.format(len(params.input.dir)
+                                                          ,fit_type)
+    ##########################################################################
+    # Generate RMSD between fit and data. Plot histogram of all RMSD values,
+    # Store RMSD values in single CSV for the fit type
+    #########################################################################
+    generate_RMSD(out_dir,ref_set,map_type,angle_type,fit_type,
+                  fit_base_filename,params=params)
 
     ###########################################################################
-    # Calculate and store pairwise euclidean distances between fits for each
-    # dataset (for each residue) 
+    # Calculate Euclidean distance
     ###########################################################################
-    for residue, data in ref_set.iterrows():
-        # Read data from csv
-        parameters_csv_filename='{}_from_{}_datasets_Fit_parameters.csv'.format(residue,len(params.input.dir))
-        fit_parameters=pandas.read_csv(os.path.join(out_dir,residue,parameters_csv_filename),     
-                              index_col=0, header=0)
-        euclidean_distance=pandas.DataFrame(index=fit_parameters.index, columns=fit_parameters.index)
-        
-        #Calcualte euclidean distances 
-        for dataset_col in fit_parameters.index:
-            for dataset_row in fit_parameters.index:
-                euclidean_distance.loc[dataset_col][dataset_row] = euclidean(fit_parameters.loc[dataset_col].values,fit_parameters.loc[dataset_row].values)
-        
-        # Output CSV
-        euclidean_csv = '{}_from_{}_datasets_euclidean_distances_from_fit_parameters.csv'.format(residue,len(params.input.dir))
-        euclidean_distance.to_csv(os.path.join(out_dir,residue,euclidean_csv))
-        
+    euclidean_base_csv = calculate_euclidean_distance(out_dir,ref_set,
+                         params,fit_type,subset=subset)
     ###########################################################################
     # Heirichal Clustering, Average linakge, for pairwise euclidean distances
     # for each residue
     ########################################################################### 
+    hier_agg_cluster(euclidean_base_csv,pairwise_type,ref_set,out_dir, params,
+                    fit_type,subset)
 
-    for residue, data in ref_set.iterrows():
-        
-        euclidean_csv = '{}_from_{}_datasets_euclidean_distances_from_fit_parameters.csv'.format(residue,len(params.input.dir))
+    
+    ##########################################################################
+    # Generate Heatmaps from clusteringi: Amplitudes
+    ##########################################################################
+    #XXX
+    clusters_weight_filename = 'Adj_clusters_weight_{}_{}_{}.csv'.format(
+                                pairwise_type, fit_type, subset)
+    #XXX
+    if not os.path.exists(os.path.join(out_dir,
+        "Adj_cluster_weight_heatmap_{}_{}_{}.png".format(pairwise_type,fit_type,subset))):
+        cluster_heatmap(os.path.join(out_dir,clusters_weight_filename),
+                    out_dir,pairwise_type,fit_type = fit_type, subset = subset)
+    ##########################################################################
+    # Clustering with Amplitudes & Means   
+    ######################################################################### 
+    subset='Amplitudes_Means'
+    euclidean_base_csv = calculate_euclidean_distance(out_dir,ref_set,
+                         params,fit_type,subset=subset)
 
-        max_coph_euclid = cluster_single_residue(os.path.join(out_dir, residue, euclidean_csv),
-                               residue, out_dir, pairwise_type='Euclidean_fit')
-        #Generate range over which euclidean distances range  
-        euclidean_csv_end = '_from_{}_datasets_euclidean_distances_from_fit_parameters.csv'.format(len(params.input.dir))        
-        min_euclid, max_euclid = find_pairwise_range(euclidean_csv_end,ref_set,out_dir,params)
+    hier_agg_cluster(euclidean_base_csv,pairwise_type,ref_set,out_dir, params,
+                    fit_type,subset)
+     
+    ##########################################################################
+    # Generate Heatmaps from clustering: Amplitudes and Means
+    ##########################################################################
+    #XXX
+    clusters_weight_filename = 'Adj_clusters_weight_{}_{}_{}.csv'.format(
+                                pairwise_type, fit_type, subset)
+    #XXX
+    if not os.path.exists(os.path.join(out_dir,
+        "Adj_cluster_weight_heatmap_{}_{}_{}.png".format(pairwise_type,fit_type,subset))):
+        cluster_heatmap(os.path.join(out_dir,clusters_weight_filename),
+                        out_dir,pairwise_type,fit_type = fit_type,
+                        subset = subset)
 
-        # Plot heatmap of pairwise euclidean distance
-        pairwise_heatmap(os.path.join(out_dir,residue,euclidean_csv), residue, out_dir,
-                        pairwise_type = 'Euclidean_fit',
-                        max_scale = max_euclid, min_scale = min_euclid)        
-       
+    #########################################################################
+    # Explore cluster weights
+    #########################################################################
+    Adj_clusters_weight = pandas.read_csv(os.path.join(out_dir,
+                                      'Adj_clusters_weight_{}_{}_{}.csv'.format(
+                                      pairwise_type, fit_type, subset))
+                                      ,header=0, index_col =0)
+    clusters_weight = pandas.read_csv(os.path.join(out_dir,
+                                      'clusters_weight_{}_{}_{}.csv'.format(
+                                      pairwise_type, fit_type, subset))
+                                      ,header=0, index_col =0)
+
+   
+    Adj_clusters_weight_corr = pandas.read_csv(os.path.join(out_dir,
+                                      'Adj_clusters_weight_{}_{}_{}.csv'.format(
+                                      'correlation', '', ''))
+                                      ,header=0, index_col =0)
+
+    RMSD_filename = 'RMSD, with {}.csv'.format(fit_type)
+
+    all_RMSD = pandas.read_csv(os.path.join(out_dir,
+                    RMSD_filename),index_col = 0,
+                    header = 0)
+    
+    dataset_score = (Adj_clusters_weight).sum()
+    residue_score = (Adj_clusters_weight**2).sum(axis = 1)
+    dataset_corr_score=Adj_clusters_weight_corr.sum()
+    residue_corr_score=(Adj_clusters_weight_corr**2).sum(axis=1)
+
+    score_matrix= pandas.DataFrame(index=residue_score.index, columns=dataset_score.index)
+
+    for dataset in dataset_score.index:
+        for residue in residue_score.index:
+            score_matrix.loc[residue][dataset]=(dataset_score.loc[dataset])*(residue_score.loc[residue])
+  
+    score_matrix.to_csv('score_matrix.csv')
+
+    dataset_resolution = pandas.read_csv(resolution_csv_path, header =0, index_col =0)
+ 
+    from IPython import embed; embed()
+    ###########################################################################
+    # Correlate RMSD with cluster weighting:
+    # If they correlate strongly then euclidean fit data may just be showing 
+    # poor fits rather than predicting outliers 
+    ###########################################################################
+#
+#    clusters_weight = pandas.read_csv(os.path.join(out_dir,
+#                                      'clusters_weight_euclidean distance.csv')
+#                                      ,header=0, index_col =0)
+#    all_RMSD = all_RMSD.transpose()
+#    numpy.corrcoef(all_RMSD.values,clusters_weight.values) 
+     
+ 
+#    clusters_weight = pandas.read_csv(os.path.join(out_dir,
+#                                      'clusters_weight_euclidean distance.csv')
+#                                      ,header=0, index_col =0 )
+#    a = fclusterdata(clusters_weight.values, 3, depth = 10)
 
 #For allowing command manager 
 if __name__ == '__main__':
