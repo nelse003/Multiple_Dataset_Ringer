@@ -15,6 +15,7 @@ from matplotlib import pyplot
 pyplot.style.use('ggplot')
 import matplotlib.lines as mlines
 ##################################
+import multiprocessing as mp
 
 ###########################################################
 # Function imports
@@ -26,7 +27,7 @@ from process_ringer import process_with_ringer
 from interpolate_ringer import (linear_interpolate_ringer_results,
                                normalise_and_sort_ringer_results)
 # Peak finding
-from peak_count import find_peaks
+from peak_count import (find_peaks, find_peakutils)
 from peak_to_array import peak_to_array
 
 # Alternate Conformer Spatial Map
@@ -65,6 +66,9 @@ settings {
     gen_heatmap = False
         .type = bool
         .multiple = False
+    processes = 6
+        .type = int
+        .multiple = False
 }
 """)
 
@@ -89,50 +93,61 @@ logger.addHandler(ch)
 ################################################################################
 #                                   FUNCTIONS                                  #
 ################################################################################
-                                                         
+
+def ringer_all_datasets(dir,params):
+
+    # Label the dataset by the directory name
+    dataset_label = os.path.basename(dir)
+    pdb = glob.glob(os.path.join(dir, params.input.pdb_style))
+    mtz = glob.glob(os.path.join(dir, params.input.mtz_style))
+    assert pdb, 'No PDB Files found in {} matching {}'.format(dir, params.input.pdb_style)
+    assert mtz, 'No MTZ Files found in {} matching {}'.format(dir, params.input.mtz_style)
+    pdb = pdb[0]
+    mtz = mtz[0]
+
+    # Process dataset with ringer and convert results to DataFrame
+    ringer_csv, resolution = process_with_ringer(pdb=pdb,
+                             mtz=mtz,
+                             angle_sampling=params.settings.angle_sampling,
+                             output_dir=dir) 
+
+    ringer_results = pandas.DataFrame.from_csv(ringer_csv, header=None)
+
+    # Change order of residue name
+    for i in range(0,len(ringer_results.index)):
+        res_split = ringer_results.index.values[i].rsplit(' ')
+        res_split.remove('')
+        ringer_results.index.values[i] = res_split[2] + ' ' + res_split[0] + ' ' + res_split[1]    
+
+    
+    return ringer_results, dataset_label                                                
 ##############################################################################
 # Main program 
 ###############################################################################
 
 def run(params):
-    
+
     # Dictionary to store all of the 
     # ringer results for each of the 
     # datasets
     all_results = {}
 
     # Create an output directory if it doesn't already exist 
-    out_dir = 'ringer_test'
+    out_dir = 'Processed_data_ABS'
     if not os.path.isdir(out_dir):
         os.makedirs(out_dir)
     
     # Generate ringer results 
-    for dir in params.input.dir:
-        # Label the dataset by the directory name
-        dataset_label = os.path.basename(dir)
-        pdb = glob.glob(os.path.join(dir, params.input.pdb_style))
-        mtz = glob.glob(os.path.join(dir, params.input.mtz_style))
-        assert pdb, 'No PDB Files found in {} matching {}'.format(dir, params.input.pdb_style)
-        assert mtz, 'No MTZ Files found in {} matching {}'.format(dir, params.input.mtz_style)
-        pdb = pdb[0]
-        mtz = mtz[0]
+    # TODO Assess why multiprocessing is not offering a speed up 
+    #      Possibly due to command manager
 
-        # Process dataset with ringer and convert results to DataFrame
-        ringer_csv, resolution = process_with_ringer(pdb=pdb,
-                                 mtz=mtz,
-                                 angle_sampling=params.settings.angle_sampling,
-                                 output_dir=dir) 
-
-        ringer_results = pandas.DataFrame.from_csv(ringer_csv, header=None)
-
-        # Change order of residue name
-        for i in range(0,len(ringer_results.index)):
-            res_split = ringer_results.index.values[i].rsplit(' ')
-            res_split.remove('')
-            ringer_results.index.values[i] = res_split[2] + ' ' + res_split[0] + ' ' + res_split[1]    
-
-        all_results[dataset_label] = ringer_results
-    
+    pool = mp.Pool(processes = params.settings.processes)
+    results = [pool.apply(ringer_all_datasets, 
+                                      args=(dir,params)) 
+                                      for dir in params.input.dir]
+    for item in results:
+        all_results[item[1]]=item[0]
+ 
     # Pull out the "first" ringer results set as a reference
     ref_set = all_results.values()[0]
 
@@ -192,18 +207,24 @@ def run(params):
     ###########################################################################
     # Peak Finding Routine
     ###########################################################################
-    peak_filename = "Peak_positions.csv"
-
+    #min_dist = 0
+    threshold = 0.0
+    peak_filename = "Peak_positions_thres_0_using_peakdetect.csv"
     if not os.path.exists(os.path.join(out_dir,peak_filename)):
-        find_peaks(out_dir,ref_set,params,map_type,angle_type,peak_filename, 
-                   mpd = 5, threshold = 0.0)
+       find_peaks(out_dir, ref_set, params, map_type, angle_type, 
+                   peak_filename, threshold = threshold)
+                   #, mpd = min_dist, 
+                   #threshold = threshold)
+       #find_peakutils(out_dir, ref_set, params, map_type, angle_type, 
+       #               peak_filename, min_dist = min_dist, 
+       #               threshold = threshold)
     else:
         logger.info('Peak Positions already generated')
 
     ###########################################################################
     # Alternate conformer array generation from peak information
     ###########################################################################
-    conformer_dir ='Alt_conformer'
+    conformer_dir ='Alt_conformer_intensity_test'
     conformer_base_filename ='_Alt_confomer.csv'
 
     peak_to_array(out_dir,conformer_dir,peak_filename,conformer_base_filename)
@@ -211,8 +232,10 @@ def run(params):
     # Generating Spatial Alternate confomer Map
     #
     # Use pconpy to generate contact maps.
-    ############################################################################
-    
+    ############################################################################     
+
+    sum_conformer_spatial_mat = None
+
     for dataset, dataset_results in all_results.iteritems():
         img_filename = dataset + '_' + 'AltConf.png'
         # PDB file to generate contact map from
@@ -222,28 +245,40 @@ def run(params):
 
         img_filename_no_spatial = dataset + '_' + 'AllAltConf.png'
         
-
         if not os.path.exists(os.path.join(out_dir,conformer_dir,img_filename)):
             
             # Looking at alternate conformer without spatial information
-            print_all_alt_conformer(os.path.join(out_dir,conformer_dir,
-                                    conformer_csv_filename),pdb_filepath,
-                                    os.path.join(out_dir,conformer_dir),
-                                    img_filename_no_spatial,
-                                    title = 'Dataset:' + dataset + 
-                                            'All Alternate conformers')
+            #print_all_alt_conformer(os.path.join(out_dir,conformer_dir,
+            #                        conformer_csv_filename),pdb_filepath,
+            #                        os.path.join(out_dir,conformer_dir),
+            #                        img_filename_no_spatial,
+            #                        title = 'Dataset:' + dataset + 
+            #                                'All Alternate conformers')
             (conformer_spatial_mat, contact_matrix) = spatial_conformer_matrix(
                                 os.path.join(out_dir,conformer_dir,
                                             conformer_csv_filename),
-                                pdb_filepath, measure ='CA', dist_thres = 8.0)
-            print_conformer_matrix(out_dir=os.path.join(out_dir,conformer_dir),
-                                   img_filename = img_filename,
-                                   conformer_spatial_mat=conformer_spatial_mat,
-                                   contact_map = none, 
-                                   title = 'Dataset:' + dataset + 
-                                       'Alternate Conformer matrix') 
+                                pdb_filepath, measure ='CB', dist_thres = 8.0)
+            #print_conformer_matrix(out_dir=os.path.join(out_dir,conformer_dir),
+            #                       img_filename = img_filename,
+            #                       conformer_spatial_mat=conformer_spatial_mat,
+            #                       contact_map = contact_matrix, 
+            #                       title = 'Dataset:' + dataset + 
+            #                          'Alternate Conformer matrix')
+            if sum_conformer_spatial_mat is None:
+                sum_conformer_spatial_mat = conformer_spatial_mat
+            else:
+                sum_conformer_spatial_mat = sum_conformer_spatial_mat.add(conformer_spatial_mat) 
         else:
             logger.info(img_filename + "Already generated")
+    
+    # Calculate & Print intensity map
+    sum_conformer_spatial_mat = sum_conformer_spatial_mat.divide(len(params.input.dir))
+    from IPython import embed; embed()
+    print_conformer_matrix(out_dir = os.path.join(out_dir,conformer_dir),
+                               img_filename = 'intensity',
+                               conformer_spatial_mat = sum_conformer_spatial_mat,
+                               contact_map = None, sum_intensity = True,
+                               title = 'Intensity spatial map') 
 #For allowing command manager 
 if __name__ == '__main__':
     from giant.jiffies import run_default

@@ -5,14 +5,14 @@
 
 import os, sys, copy, glob
 
-# Absolute electron density conversion
-import giant
 # For command manager         
 from bamboo.common.command import CommandManager
 # Package for getting summary from crystal (mtz): resolution
-from giant.xray.data import CrystalSummary
+from iotbx.reflection_file_reader import any_reflection_file
+from cctbx import miller
 
-def process_with_ringer(pdb, mtz, angle_sampling,resolution_csv_path = None,output_dir=None                        ,output_base=None):
+def process_with_ringer(pdb, mtz, angle_sampling,resolution_csv_path = None,
+                        output_dir=None,output_base=None):
     """Analyse a pdb-mtz pair with mmtbx.ringer"""
 
     assert os.path.exists(pdb), 'PDB File does not exist'
@@ -62,9 +62,9 @@ def process_with_ringer(pdb, mtz, angle_sampling,resolution_csv_path = None,outp
     #Only run if resolution csv does not exist
     if resolution_csv_path is not None:
         if not os.path.exists(resolution_csv_path):
-            crystal_summary = CrystalSummary.from_mtz(mtz)
-            resolution = crystal_summary.high_res
-
+            hkl_in = any_reflection_file(file_name="data.sca")
+            miller_arrays = hkl_in.as_miller_arrays()
+            print miller_arrays.d_min()
 
     return output_csv, resolution
 

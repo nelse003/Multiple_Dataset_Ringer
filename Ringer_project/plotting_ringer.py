@@ -25,6 +25,8 @@ pyplot.style.use('ggplot')
 matplotlib.rcParams['savefig.facecolor'] = 'white'
 matplotlib.rcParams['savefig.dpi'] = 80
 matplotlib.rcParams['axes.facecolor'] = 'white'
+matplotlib.rcParams['xtick.labelsize'] = 18
+matplotlib.rcParams['ytick.labelsize'] = 18
 import matplotlib.lines as mlines
 ##################################
 
@@ -96,9 +98,9 @@ def multiple_line_plot_bold(bold_angles, bold_map_values,all_data_list, title,
                             bold_blue_map_values = None, bold_blue_map = None):
     """ Plot multiple ringer plots, with a bold plot ontop"""
     fig = myfig(figsize=(10,8))
-    pyplot.title(title)
-    pyplot.xlabel('Angle')
-    pyplot.ylabel('Map Value')
+    pyplot.title(title, fontsize = 24)
+    pyplot.xlabel('Angle',fontsize = 20)
+    pyplot.ylabel('Map Value', fontsize = 20)
     pyplot.xlim(0,360)
 
     # Legend
@@ -109,10 +111,10 @@ def multiple_line_plot_bold(bold_angles, bold_map_values,all_data_list, title,
         blue_line =mlines.Line2D([],[], color ='b',ls = '-.', 
                                  label = '{} Ringer plot'.format(bold_blue_map))
         legend = pyplot.legend(handles =[black_line,grey_line,blue_line], 
-                               loc = 'best')
+                               loc = 'best', fontsize =20)
     else:
         legend = pyplot.legend(handles =[black_line,grey_line], 
-                               loc= 'best')
+                               loc= 'best', fontsize = 20)
     legend.get_frame().set_facecolor('w')
      # Background Plots     
     for i in range(0,len(all_data_list)):
