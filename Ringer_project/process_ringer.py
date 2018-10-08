@@ -1,4 +1,3 @@
-#!/usr/bin/env pandda.python
 
 ##########################################################
 #Packages
@@ -10,6 +9,8 @@ from bamboo.common.command import CommandManager
 # Package for getting summary from crystal (mtz): resolution
 from iotbx.reflection_file_reader import any_reflection_file
 from cctbx import miller
+from giant.jiffies.quick_insert_f000 import run as insert_f000
+from giant.jiffies.quick_insert_f000 import master_phil as f000_phil
 
 def process_with_ringer(pdb, mtz, angle_sampling,resolution_csv_path = None,
                         output_dir=None,output_base=None):
@@ -36,9 +37,18 @@ def process_with_ringer(pdb, mtz, angle_sampling,resolution_csv_path = None,
     # Only run if results don't already exist
     if not os.path.exists(os.path.join(output_csv)):
         if not os.path.exists(abs_mtz):
-            f000 = CommandManager('giant.insert_f000')
-            f000.add_command_line_arguments(pdb, mtz)
-            f000.run()
+
+            f000_params = f000_phil.extract()
+            f000_params.input.pdb = pdb
+            f000_params.input.mtz = mtz
+            insert_f000(f000_params)
+
+            # Original code to run via zambezi adaption.
+            # Try ro use new version distributed with pandda
+
+            # f000 = CommandManager('giant.insert_f000')
+            # f000.add_command_line_arguments(pdb, mtz)
+            # f000.run()
 
         # Initialise and populate command object
         ringer = CommandManager(program='/usr/local/phenix/phenix-1.9-1682/build/intel-linux-2.6-x86_64/bin/mmtbx.ringer')
