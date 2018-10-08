@@ -1,4 +1,4 @@
-#!/usr/bin/env pandda.python
+
 
 ###############################################################################
 # Packages
@@ -63,7 +63,7 @@ input {
     dir = None
         .type = path
         .multiple = True
-    pdb_style = "*.dimple.pdb"
+    pdb_style = "dimple.pdb"
         .type = str
         .multiple = False
     mtz_style = "*.dimple.mtz"
@@ -114,6 +114,19 @@ logger.addHandler(ch)
 ###############################################################################
 
 def run(params):
+
+    """
+
+    Notes
+    ------------------
+    Needs to be run with a input (params.input.dir) directory organised with
+    pdb files in
+
+
+    :param params:
+    :return:
+    """
+
     # Dictionary to store all of the
     # ringer results for each of the 
     # datasets
@@ -312,7 +325,7 @@ def run(params):
         logger.info('Histogram of peak angles exists')
 
     # TODO Seperat into seperat files/ and set up phil file to run with and without these features
-    """
+
    
     ##########################################################################
     # Curve Fitting routine for all datasets
@@ -447,7 +460,7 @@ def run(params):
     # Peak Finding Routine
     ###########################################################################
     find_peaks(out_dir,ref_set,params,map_type,angle_type)
-    """
+
 
 
 # For allowing command manager
