@@ -66,7 +66,7 @@ input {
     pdb_style = "dimple.pdb"
         .type = str
         .multiple = False
-    mtz_style = "*.dimple.mtz"
+    mtz_style = "dimple.mtz"
       .type = str
         .multiple = False
 }
