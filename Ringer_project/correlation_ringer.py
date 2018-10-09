@@ -27,6 +27,11 @@ def correlation_single_residue(input_csv,residue,output_dir,params,
     correlation_data = pandas.DataFrame(correlation_matrix, 
                                         index = dataset_labels, 
                                         columns = dataset_labels)
+    print(correlation_data)
+    print(output_dir)
+    print(out_filename)
+    print(os.path.join(output_dir, out_filename))
+    exit()
     # Correlation data as CSV 
     correlation_data.to_csv(os.path.join(output_dir,out_filename))
     

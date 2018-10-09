@@ -148,7 +148,7 @@ def generate_linkage_matrix(pairwise_csv,params):
 
     return linkage_matrix, dataset_labels
 
-def find_pairwise_range(pairwise_csv_end,ref_set,out_dir,params):
+def find_pairwise_range(pairwise_csv_end, ref_set, out_dir, params):
     """ Find minimum value across all pairwise correlations"""
 
     pairwise_min=[]
@@ -159,7 +159,7 @@ def find_pairwise_range(pairwise_csv_end,ref_set,out_dir,params):
         pairwise_csv='{}'.format(residue) + pairwise_csv_end
 
         # Load csv into pandas DataFrame
-        data = pandas.read_csv(os.path.join(out_dir,residue,pairwise_csv), index_col=0)
+        data = pandas.read_csv(os.path.join(out_dir, residue, pairwise_csv), index_col=0)
         assert (len(data) == len(params.input.dir)),(
            'Input CSV data is length {} for {} datasets.'
            'Lengths should match'.format(len(data)+1,len(params.input.dir)))

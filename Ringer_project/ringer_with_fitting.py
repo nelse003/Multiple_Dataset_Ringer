@@ -18,6 +18,8 @@ matplotlib.interactive(0)
 from matplotlib import pyplot
 
 pyplot.style.use('ggplot')
+
+from string import ascii_letters
 ##################################
 
 ###########################################################
@@ -126,11 +128,8 @@ def run(params):
     pdb files in /dir/*pdb_style*
     
     Process ringer uses 2FOFCWT, PHI2FOFCWT columns. 
-    How can these be generated in other mtz files?
+    Handle other columns by moving to input check.
 
-
-    :param params:
-    :return:
     """
 
     # Dictionary to store all of the
@@ -186,18 +185,18 @@ def run(params):
 
         # Unsure of why ringer results need indices renaming?
 
-        # # Change order of residue name
-        # for i in range(0, len(ringer_results.index)):
-        #     res_split = ringer_results.index.values[i].rsplit(' ')
-        #     res_split.remove('')
-        #     ringer_results.index.values[i] = res_split[2] + ' ' + res_split[0] + ' ' + res_split[1]
+        # Change order of residue name.
+        # This is needed for the comparison:
+        # current_dataset_results = dataset_results.loc[(dataset_results.index == residue)]
+        # ~ line 238
+
+        for i in range(0, len(ringer_results.index)):
+            res_split = ringer_results.index.values[i].rsplit(' ')
+            if len(res_split) > 2:
+                ringer_results.index.values[i] = res_split[0] + ' ' + res_split[1]
 
         all_results[dataset_label] = ringer_results
         dataset_resolution.loc[dataset_label] = resolution
-
-    print(all_results.keys())
-    exit()
-
 
     # Resolution to CSV
     if not os.path.exists(resolution_csv_path):
@@ -214,6 +213,8 @@ def run(params):
     angle_type = 'chi1'
 
     # Name for storage of interpolated results (without residue)
+    # TODO Need to swap out length with more appropriate lenght,
+    # TODO as datasets can be skipped if no pdb/mtz
     interpolate_base_csv = '_{}_Datasets_{}_{}-ringer.csv'.format(len(params.input.dir), map_type, angle_type)
 
     # Choose a map_type/angle_type by reducing reference set
@@ -261,30 +262,43 @@ def run(params):
                 # across multiple datasets
                 single_residue_multiple_datasets.loc['{}'.format(dataset_label)] = interpolated_map_values
 
+
                 # Print results for all of the datasets for this residue in the same graph
-            multiple_line_plot_ringer(residue_data_list, title=residue,
-                                      filename='all-{}-{}-dataset.png'.format(residue, len(residue_data_list)),
+            multiple_line_plot_ringer(residue_data_list,
+                                      title=residue,
+                                      filename='all-{}-{}-dataset.png'.format(
+                                          residue, len(residue_data_list)),
                                       out_dir=os.path.join(params.output.out_dir, residue))
+
+            print(single_residue_multiple_datasets)
+
             # Output CSV from one resiude, multiple datasets
             pandas.DataFrame.to_csv(single_residue_multiple_datasets,
                                     os.path.join(params.output.out_dir, residue,
                                                  interpolate_csv))
         else:
             logger.info(
-                '{}:Interpolated CSVs already generated, for these {} datasets'.format(residue, len(params.input.dir)))
+                '{}: Interpolated CSVs already generated,'
+                ' for these {} datasets'.format(residue,
+                                               len(params.input.dir)))
 
-            # Generate correlation CSV
+        print("OUT")
+        # Generate correlation CSV
+        if not os.path.exists(os.path.join(params.output.out_dir,
+                                           residue, correlation_csv)):
 
-            if not os.path.exists(os.path.join(params.output.out_dir,
-                                               residue, correlation_csv)):
-                correlation_single_residue(os.path.join(params.output.out_dir, residue,
-                                                        interpolate_csv), residue,
-                                           os.path.join(params.output.out_dir, residue),
-                                           out_filename=correlation_csv,
-                                           params=params)
-            else:
-                logger.info('{}: Correlation CSV already generated, for these {} datasets'.format(residue, len(
-                    params.input.dir)))
+            print("IN")
+
+            correlation_single_residue(input_csv=os.path.join(params.output.out_dir,
+                                                              residue,
+                                                              interpolate_csv),
+                                       residue=residue,
+                                       output_dir=os.path.join(params.output.out_dir, residue),
+                                       out_filename=correlation_csv,
+                                       params=params)
+        else:
+            logger.info('{}: Correlation CSV already generated, for these {} datasets'.format(residue, len(
+                params.input.dir)))
 
     ##########################################################################
     # Generate Average Ringer Plots
@@ -310,7 +324,10 @@ def run(params):
     # Clustering for correlation
     ###########################################################################
     correlation_csv_end = '_from {} datasets-correlation-ringer.csv'.format(len(params.input.dir))
-    min_corr, max_corr = find_pairwise_range(correlation_csv_end, ref_set, params.output.out_dir, params)
+    min_corr, max_corr = find_pairwise_range(correlation_csv_end,
+                                             ref_set,
+                                             params.output.out_dir,
+                                             params)
 
     hier_agg_cluster(correlation_csv_end, pairwise_type='correlation',
                      ref_set=ref_set, out_dir=params.output.out_dir, params=params)
