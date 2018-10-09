@@ -49,7 +49,7 @@ def process_with_ringer(pdb, mtz, angle_sampling,resolution_csv_path = None,
 
 
         # Initialise and populate command object
-        ringer = CommandManager(program='/usr/local/phenix/phenix-1.13-2998/build/bin/mmtbx.ringer')
+        ringer = CommandManager(program='mmtbx.ringer')
         ringer.add_command_line_arguments(pdb, abs_mtz)
         ringer.add_command_line_arguments("scaling=volume")
         ringer.add_command_line_arguments('sampling_angle={}'.format(angle_sampling))
