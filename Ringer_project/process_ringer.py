@@ -47,12 +47,6 @@ def process_with_ringer(pdb, mtz, angle_sampling,resolution_csv_path = None,
 
             insert_f000(f000_params)
 
-            # Original code to run via zambezi adaption.
-            # Try ro use new version distributed with pandda
-
-            # f000 = CommandManager('giant.insert_f000')
-            # f000.add_command_line_arguments(pdb, mtz)
-            # f000.run()
 
         # Initialise and populate command object
         ringer = CommandManager(program='/usr/local/phenix/phenix-1.13-2998/build/bin/mmtbx.ringer')

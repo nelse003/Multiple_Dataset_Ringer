@@ -138,13 +138,12 @@ def run(params):
     # datasets
     all_results = {}
 
-    # Create an output directory if it doesn't already exist 
-    out_dir = 'no_mean_bound'
-    if not os.path.isdir(out_dir):
-        os.makedirs(out_dir)
+    # Create an output directory if it doesn't already exist
+    if not os.path.isdir(params.output.out_dir):
+        os.makedirs(params.output.out_dir)
 
     # Resolution CSV filename & path
-    resolution_csv_path = os.path.join(out_dir, 'dataset_resolution.csv')
+    resolution_csv_path = os.path.join(params.output.out_dir, 'dataset_resolution.csv')
     # DataFrame to store resolution
     dataset_resolution = pandas.DataFrame(index=params.input.dir,
                                           columns=['Resolution'])
@@ -152,13 +151,29 @@ def run(params):
     # Generate ringer results & resolution information
     for dataset_dir in params.input.dir:
         # Label the dataset by the directory name
-        dataset_label = os.path.basename(dataset_dir)
+        dataset_label = os.path.basename(dataset_dir.rstrip('/'))
         pdb = glob.glob(os.path.join(dataset_dir, params.input.pdb_style))
         mtz = glob.glob(os.path.join(dataset_dir, params.input.mtz_style))
-        assert pdb, 'No PDB Files found in {} matching {}'.format(dataset_dir, params.input.pdb_style)
-        assert mtz, 'No MTZ Files found in {} matching {}'.format(dataset_dir, params.input.mtz_style)
+
+        if not pdb:
+            continue
+
+        if not mtz:
+            continue
+
         pdb = pdb[0]
         mtz = mtz[0]
+
+        if not os.path.exists(pdb):
+            print('Skipping dir: No PDB Files found in {} matching {}'.format(
+                dataset_dir, params.input.pdb_style))
+            continue
+
+        if not os.path.exists(mtz):
+            print('Skipping dir: No MTZ Files found in {} matching {}'.format(
+                dataset_dir, params.input.mtz_style))
+            continue
+
 
         # Process dataset with ringer and convert results to DataFrame
         ringer_csv, resolution = process_with_ringer(pdb=pdb,
@@ -179,6 +194,10 @@ def run(params):
 
         all_results[dataset_label] = ringer_results
         dataset_resolution.loc[dataset_label] = resolution
+
+    print(all_results.keys())
+    exit()
+
 
     # Resolution to CSV
     if not os.path.exists(resolution_csv_path):
@@ -206,8 +225,8 @@ def run(params):
         residue_data_list = []
 
         # Create ouput directories for each residue
-        if not os.path.isdir(os.path.join(out_dir, residue)):
-            os.makedirs(os.path.join(out_dir, residue))
+        if not os.path.isdir(os.path.join(params.output.out_dir, residue)):
+            os.makedirs(os.path.join(params.output.out_dir, residue))
             # Output filename for interpolated data
             # (Used to check existence of output)
         interpolate_csv = residue + interpolate_base_csv
@@ -216,7 +235,7 @@ def run(params):
         correlation_csv = '{}_from {} datasets-correlation-ringer.csv'.format(
             residue, len(params.input.dir))
 
-        if not os.path.exists(os.path.join(out_dir, residue, interpolate_csv)):
+        if not os.path.exists(os.path.join(params.output.out_dir, residue, interpolate_csv)):
 
             # Iterate through the datasets
             for dataset_label, dataset_results in all_results.iteritems():
@@ -245,10 +264,10 @@ def run(params):
                 # Print results for all of the datasets for this residue in the same graph
             multiple_line_plot_ringer(residue_data_list, title=residue,
                                       filename='all-{}-{}-dataset.png'.format(residue, len(residue_data_list)),
-                                      out_dir=os.path.join(out_dir, residue))
+                                      out_dir=os.path.join(params.output.out_dir, residue))
             # Output CSV from one resiude, multiple datasets
             pandas.DataFrame.to_csv(single_residue_multiple_datasets,
-                                    os.path.join(out_dir, residue,
+                                    os.path.join(params.output.out_dir, residue,
                                                  interpolate_csv))
         else:
             logger.info(
@@ -256,11 +275,11 @@ def run(params):
 
             # Generate correlation CSV
 
-            if not os.path.exists(os.path.join(out_dir,
+            if not os.path.exists(os.path.join(params.output.out_dir,
                                                residue, correlation_csv)):
-                correlation_single_residue(os.path.join(out_dir, residue,
+                correlation_single_residue(os.path.join(params.output.out_dir, residue,
                                                         interpolate_csv), residue,
-                                           os.path.join(out_dir, residue),
+                                           os.path.join(params.output.out_dir, residue),
                                            out_filename=correlation_csv,
                                            params=params)
             else:
@@ -271,47 +290,46 @@ def run(params):
     # Generate Average Ringer Plots
     ##########################################################################
     average_type = "Median"
-    if not os.path.exists(os.path.join(out_dir, '{}_ringer_results'.format(average_type),
+    if not os.path.exists(os.path.join(params.output.out_dir, '{}_ringer_results'.format(average_type),
                                        '{}_ringer_{}_datasets.csv'.format(average_type,
                                                                           len(params.input.dir)))):
         average_ringer_plots(base_csv=interpolate_base_csv, ref_set=ref_set,
-                             out_dir=out_dir, params=params,
+                             out_dir=params.output.out_dir, params=params,
                              average_type=average_type)
     else:
         logger.info('Average Ringer plots already generated')
 
     # Blue line plots
-    average_ringer_plots(base_csv=interpolate_base_csv, ref_set=ref_set,
-                         out_dir=out_dir, params=params,
-                         average_type=average_type,
-                         bold_blue_map=None)
+    # average_ringer_plots(base_csv=interpolate_base_csv, ref_set=ref_set,
+    #                      out_dir=out_dir, params=params,
+    #                      average_type=average_type,
+    #                      bold_blue_map=None)
 
-    raise SystemExit
 
     ###########################################################################
     # Clustering for correlation
     ###########################################################################
     correlation_csv_end = '_from {} datasets-correlation-ringer.csv'.format(len(params.input.dir))
-    min_corr, max_corr = find_pairwise_range(correlation_csv_end, ref_set, out_dir, params)
+    min_corr, max_corr = find_pairwise_range(correlation_csv_end, ref_set, params.output.out_dir, params)
 
     hier_agg_cluster(correlation_csv_end, pairwise_type='correlation',
-                     ref_set=ref_set, out_dir=out_dir, params=params)
+                     ref_set=ref_set, out_dir=params.output.out_dir, params=params)
 
     ##########################################################################
     # Generate heatmaps from clustering:Correlation
     ###########################################################################
     clusters_weight_filename = 'Adj_clusters_weight_{}_{}_{}.csv'.format('correlation', '', '')
 
-    if not os.path.exists(os.path.join(out_dir,
+    if not os.path.exists(os.path.join(params.output.out_dir,
                                        "Adj_cluster_weight_heatmap_{}_{}_{}.png".format('correlation', '', ''))):
-        cluster_heatmap(os.path.join(out_dir, clusters_weight_filename),
-                        out_dir, pairwise_type='correlation', fit_type='', subset='')
+        cluster_heatmap(os.path.join(params.output.out_dir, clusters_weight_filename),
+                        params.output.out_dir, pairwise_type='correlation', fit_type='', subset='')
     ###########################################################################
     # Generating histogram to show the location of the maximal points 
     # of peak in ringer plot. Shows three rotamer bins [60, 180, 300] 
     ###########################################################################
 
-    if not os.path.exists(os.path.join(out_dir, 'Modal_peak_location.png')):
+    if not os.path.exists(os.path.join(params.output.out_dir, 'Modal_peak_location.png')):
 
         max_peak_angle = []
         # Generate maximal values from interpolated map values
@@ -319,7 +337,7 @@ def run(params):
             interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue, len(params.input.dir), map_type,
                                                                        angle_type)
 
-            interpolated_results = pandas.read_csv(os.path.join(out_dir, residue,
+            interpolated_results = pandas.read_csv(os.path.join(params.output.out_dir, residue,
                                                                 interpolate_csv), index_col=0)
             assert (len(interpolated_results) == len(params.input.dir)), (
                 'Input CSV data is length {} for {} datasets.'
@@ -329,7 +347,7 @@ def run(params):
             max_peak_angle.append(angle_with_max_map)
 
             # Plot histogram
-        peak_angle_histogram(max_peak_angle, out_dir)
+        peak_angle_histogram(max_peak_angle, params.output.out_dir)
     else:
         logger.info('Histogram of peak angles exists')
 
@@ -343,7 +361,7 @@ def run(params):
     subset='Amplitudes'
     pairwise_type = 'euclidean distance'
     mean_bound = None
-    fit_all_datasets(out_dir,ref_set,map_type,angle_type,
+    fit_all_datasets(params.output.out_dir,ref_set,map_type,angle_type,
                     params,pairwise_type,fit_type, mean_bound = mean_bound)
 
     fit_base_filename = '_from_{}_datasets_{}.csv'.format(len(params.input.dir)
@@ -352,25 +370,25 @@ def run(params):
     # Generate RMSD between fit and data. Plot histogram of all RMSD values,
     # Store RMSD values in single CSV for the fit type
     #########################################################################
-    generate_RMSD(out_dir, ref_set, map_type, angle_type, fit_type,
+    generate_RMSD(params.output.out_dir, ref_set, map_type, angle_type, fit_type,
                   fit_base_filename, params=params)
 
     ###########################################################################
     # Calculate Euclidean distance
     ###########################################################################
-    euclidean_base_csv = calculate_euclidean_distance(out_dir, ref_set,
+    euclidean_base_csv = calculate_euclidean_distance(params.output.out_dir, ref_set,
                          params, fit_type, subset=subset)
     ###########################################################################
     # Heirichal Clustering, Average linakge, for pairwise euclidean distances
     # for each residue
     ########################################################################### 
-    hier_agg_cluster(euclidean_base_csv, pairwise_type, ref_set, out_dir,
+    hier_agg_cluster(euclidean_base_csv, pairwise_type, ref_set, params.output.out_dir,
                      params, fit_type, subset, incons_threshold = 3, depth = 10)
-    hier_agg_cluster(euclidean_base_csv, pairwise_type, ref_set, out_dir,
+    hier_agg_cluster(euclidean_base_csv, pairwise_type, ref_set, params.output.out_dir,
                      params, fit_type, subset, incons_threshold = 4, depth = 10)
-    hier_agg_cluster(euclidean_base_csv, pairwise_type, ref_set, out_dir,
+    hier_agg_cluster(euclidean_base_csv, pairwise_type, ref_set, params.output.out_dir,
                      params, fit_type, subset, incons_threshold = 3, depth = 5)
-    hier_agg_cluster(euclidean_base_csv, pairwise_type, ref_set, out_dir,
+    hier_agg_cluster(euclidean_base_csv, pairwise_type, ref_set, params.output.out_dir,
                      params, fit_type, subset, incons_threshold = 4, depth = 5)
 
     ##########################################################################
@@ -378,19 +396,19 @@ def run(params):
     ##########################################################################
     clusters_weight_filename = 'Adj_clusters_weight_{}_{}_{}.csv'.format(
                                 pairwise_type, fit_type, subset)
-    if not os.path.exists(os.path.join(out_dir,
+    if not os.path.exists(os.path.join(params.output.out_dir,
         "Adj_cluster_weight_heatmap_{}_{}_{}.png".format(pairwise_type,fit_type,subset))):
-        cluster_heatmap(os.path.join(out_dir,clusters_weight_filename),
-                    out_dir,pairwise_type,fit_type = fit_type, subset = subset)
+        cluster_heatmap(os.path.join(params.output.out_dir,clusters_weight_filename),
+                    params.output.out_dir,pairwise_type,fit_type = fit_type, subset = subset)
 
     ##########################################################################
     # Clustering with Amplitudes & Means   
     ######################################################################### 
     subset='Amplitudes_Means'
-    euclidean_base_csv = calculate_euclidean_distance(out_dir,ref_set,
+    euclidean_base_csv = calculate_euclidean_distance(params.output.out_dir,ref_set,
                          params,fit_type,subset=subset)
 
-    hier_agg_cluster(euclidean_base_csv,pairwise_type,ref_set,out_dir, params,
+    hier_agg_cluster(euclidean_base_csv,pairwise_type,ref_set,params.output.out_dir, params,
                     fit_type,subset)
      
     ##########################################################################
@@ -398,25 +416,25 @@ def run(params):
     ##########################################################################
     clusters_weight_filename = 'Adj_clusters_weight_{}_{}_{}.csv'.format(
                                 pairwise_type, fit_type, subset)
-    if not os.path.exists(os.path.join(out_dir,
+    if not os.path.exists(os.path.join(params.output.out_dir,
         "Adj_cluster_weight_heatmap_{}_{}_{}.png".format(pairwise_type,fit_type,subset))):
-        cluster_heatmap(os.path.join(out_dir,clusters_weight_filename),
-                        out_dir,pairwise_type,fit_type = fit_type,
+        cluster_heatmap(os.path.join(params.output.out_dir,clusters_weight_filename),
+                        params.output.out_dir,pairwise_type,fit_type = fit_type,
                         subset = subset)
     #########################################################################
     # Explore cluster weights
     #########################################################################
     subset ='Amplitudes' 
-    Adj_clusters_weight = pandas.read_csv(os.path.join(out_dir,
+    Adj_clusters_weight = pandas.read_csv(os.path.join(params.output.out_dir,
                                       'Adj_clusters_weight_{}_{}_{}.csv'.format(
                                       pairwise_type, fit_type, subset))
                                       ,header=0, index_col =0)
-    Adj_clusters_weight_corr = pandas.read_csv(os.path.join(out_dir,
+    Adj_clusters_weight_corr = pandas.read_csv(os.path.join(params.output.out_dir,
                                       'Adj_clusters_weight_{}_{}_{}.csv'.format(
                                       'correlation', '', ''))
                                       ,header=0, index_col =0)
     subset='Amplitudes_Means'
-    Adj_clusters_weight_means = pandas.read_csv(os.path.join(out_dir,
+    Adj_clusters_weight_means = pandas.read_csv(os.path.join(params.output.out_dir,
                                       'Adj_clusters_weight_{}_{}_{}.csv'.format(
                                       pairwise_type, fit_type, subset))
                                       ,header=0, index_col =0)
@@ -425,7 +443,7 @@ def run(params):
     #########################################################################
     RMSD_filename = 'RMSD, with {}.csv'.format(fit_type)
 
-    all_RMSD = pandas.read_csv(os.path.join(out_dir,
+    all_RMSD = pandas.read_csv(os.path.join(params.output.out_dir,
                     RMSD_filename),index_col = 0,
                     header = 0)
     
@@ -458,17 +476,17 @@ def run(params):
     ##########################################################################
     # Plotting 
     ###########################################################################
-    plot_correlation_vs_fitting(out_dir,dataset_corr_score,dataset_score)
-    plot_resloution_vs_dataset_score(out_dir,dataset_score,dataset_means_score,
+    plot_correlation_vs_fitting(params.output.out_dir,dataset_corr_score,dataset_score)
+    plot_resloution_vs_dataset_score(params.output.out_dir,dataset_score,dataset_means_score,
                                      dataset_resolution)
-    plot_RMSD_vs_dataset_score(out_dir,all_RMSD,dataset_score,bound_ligands)
-    plot_RMSD_vs_resolution(out_dir,all_RMSD,dataset_resolution)   
-    plot_RMSD_vs_residue_score(out_dir,all_RMSD,residue_score,
+    plot_RMSD_vs_dataset_score(params.output.out_dir,all_RMSD,dataset_score,bound_ligands)
+    plot_RMSD_vs_resolution(params.output.out_dir,all_RMSD,dataset_resolution)
+    plot_RMSD_vs_residue_score(params.output.out_dir,all_RMSD,residue_score,
                                residue_means_score)
     ###########################################################################
     # Peak Finding Routine
     ###########################################################################
-    find_peaks(out_dir, ref_set,params, map_type, angle_type)
+    find_peaks(params.output.out_dir, ref_set,params, map_type, angle_type)
 
 
 
