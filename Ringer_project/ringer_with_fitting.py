@@ -74,6 +74,9 @@ output {
     log = "ringer.log"
         .type = str
         .multiple = False
+    out_dir = "output"
+        .type = str
+        .multiple = False
 }
 settings {
     # XXX mmtbx.ringer can only take this an integer, >1 XXX#
@@ -120,7 +123,10 @@ def run(params):
     Notes
     ------------------
     Needs to be run with a input (params.input.dir) directory organised with
-    pdb files in
+    pdb files in /dir/*pdb_style*
+    
+    Process ringer uses 2FOFCWT, PHI2FOFCWT columns. 
+    How can these be generated in other mtz files?
 
 
     :param params:
@@ -163,11 +169,13 @@ def run(params):
 
         ringer_results = pandas.DataFrame.from_csv(ringer_csv, header=None)
 
-        # Change order of residue name
-        for i in range(0, len(ringer_results.index)):
-            res_split = ringer_results.index.values[i].rsplit(' ')
-            res_split.remove('')
-            ringer_results.index.values[i] = res_split[2] + ' ' + res_split[0] + ' ' + res_split[1]
+        # Unsure of why ringer results need indices renaming?
+
+        # # Change order of residue name
+        # for i in range(0, len(ringer_results.index)):
+        #     res_split = ringer_results.index.values[i].rsplit(' ')
+        #     res_split.remove('')
+        #     ringer_results.index.values[i] = res_split[2] + ' ' + res_split[0] + ' ' + res_split[1]
 
         all_results[dataset_label] = ringer_results
         dataset_resolution.loc[dataset_label] = resolution
@@ -258,6 +266,7 @@ def run(params):
             else:
                 logger.info('{}: Correlation CSV already generated, for these {} datasets'.format(residue, len(
                     params.input.dir)))
+
     ##########################################################################
     # Generate Average Ringer Plots
     ##########################################################################
@@ -275,7 +284,7 @@ def run(params):
     average_ringer_plots(base_csv=interpolate_base_csv, ref_set=ref_set,
                          out_dir=out_dir, params=params,
                          average_type=average_type,
-                         bold_blue_map='JMJD2DA-x637')
+                         bold_blue_map=None)
 
     raise SystemExit
 
@@ -343,26 +352,26 @@ def run(params):
     # Generate RMSD between fit and data. Plot histogram of all RMSD values,
     # Store RMSD values in single CSV for the fit type
     #########################################################################
-    generate_RMSD(out_dir,ref_set,map_type,angle_type,fit_type,
-                  fit_base_filename,params=params)
+    generate_RMSD(out_dir, ref_set, map_type, angle_type, fit_type,
+                  fit_base_filename, params=params)
 
     ###########################################################################
     # Calculate Euclidean distance
     ###########################################################################
-    euclidean_base_csv = calculate_euclidean_distance(out_dir,ref_set,
-                         params,fit_type,subset=subset)
+    euclidean_base_csv = calculate_euclidean_distance(out_dir, ref_set,
+                         params, fit_type, subset=subset)
     ###########################################################################
     # Heirichal Clustering, Average linakge, for pairwise euclidean distances
     # for each residue
     ########################################################################### 
-    hier_agg_cluster(euclidean_base_csv,pairwise_type,ref_set,out_dir, params,
-                    fit_type,subset,incons_threshold = 3, depth = 10)
-    hier_agg_cluster(euclidean_base_csv,pairwise_type,ref_set,out_dir, params,
-                    fit_type,subset,incons_threshold = 4, depth = 10)
-    hier_agg_cluster(euclidean_base_csv,pairwise_type,ref_set,out_dir, params,
-                    fit_type,subset,incons_threshold = 3, depth = 5)
-    hier_agg_cluster(euclidean_base_csv,pairwise_type,ref_set,out_dir, params,
-                    fit_type,subset,incons_threshold = 4, depth = 5)
+    hier_agg_cluster(euclidean_base_csv, pairwise_type, ref_set, out_dir,
+                     params, fit_type, subset, incons_threshold = 3, depth = 10)
+    hier_agg_cluster(euclidean_base_csv, pairwise_type, ref_set, out_dir,
+                     params, fit_type, subset, incons_threshold = 4, depth = 10)
+    hier_agg_cluster(euclidean_base_csv, pairwise_type, ref_set, out_dir,
+                     params, fit_type, subset, incons_threshold = 3, depth = 5)
+    hier_agg_cluster(euclidean_base_csv, pairwise_type, ref_set, out_dir,
+                     params, fit_type, subset, incons_threshold = 4, depth = 5)
 
     ##########################################################################
     # Generate Heatmaps from clustering: Amplitudes
@@ -459,7 +468,7 @@ def run(params):
     ###########################################################################
     # Peak Finding Routine
     ###########################################################################
-    find_peaks(out_dir,ref_set,params,map_type,angle_type)
+    find_peaks(out_dir, ref_set,params, map_type, angle_type)
 
 
 

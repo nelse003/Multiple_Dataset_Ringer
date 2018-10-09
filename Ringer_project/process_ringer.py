@@ -41,6 +41,10 @@ def process_with_ringer(pdb, mtz, angle_sampling,resolution_csv_path = None,
             f000_params = f000_phil.extract()
             f000_params.input.pdb = pdb
             f000_params.input.mtz = mtz
+            f000_params.options.column.label = "FWT,PHWT"
+
+            print(f000_params)
+
             insert_f000(f000_params)
 
             # Original code to run via zambezi adaption.
@@ -51,7 +55,7 @@ def process_with_ringer(pdb, mtz, angle_sampling,resolution_csv_path = None,
             # f000.run()
 
         # Initialise and populate command object
-        ringer = CommandManager(program='/usr/local/phenix/phenix-1.9-1682/build/intel-linux-2.6-x86_64/bin/mmtbx.ringer')
+        ringer = CommandManager(program='/usr/local/phenix/phenix-1.13-2998/build/bin/mmtbx.ringer')
         ringer.add_command_line_arguments(pdb, abs_mtz)
         ringer.add_command_line_arguments("scaling=volume")
         ringer.add_command_line_arguments('sampling_angle={}'.format(angle_sampling))
@@ -70,11 +74,15 @@ def process_with_ringer(pdb, mtz, angle_sampling,resolution_csv_path = None,
 
     resolution = 0
     #Only run if resolution csv does not exist
-    if resolution_csv_path is not None:
-        if not os.path.exists(resolution_csv_path):
-            hkl_in = any_reflection_file(file_name="data.sca")
-            miller_arrays = hkl_in.as_miller_arrays()
-            print miller_arrays.d_min()
+
+    # This code is obsifcating and confusing.
+    # Check why we need a resolution check, and replace if necessary
+
+    # if resolution_csv_path is not None:
+    #     if not os.path.exists(resolution_csv_path):
+    #         hkl_in = any_reflection_file(file_name=mtz)
+    #         miller_arrays = hkl_in.as_miller_arrays()
+
 
     return output_csv, resolution
 
