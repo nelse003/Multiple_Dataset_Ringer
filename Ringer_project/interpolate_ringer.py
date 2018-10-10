@@ -27,13 +27,16 @@ logger.addHandler(ch)
 
 def normalise_and_sort_ringer_results(current_dataset_results,params):
     """Sorts ringer results by angle"""
-     #Extract from current residue in dataset
+
+    # Extract from current residue in dataset
+
     residue = current_dataset_results.index[0]
     start_ang  = current_dataset_results.values[0,2]
-    ang_rel = params.settings.angle_sampling*current_dataset_results.columns.values[3:]-3
+    ang_rel = params.settings.angle_sampling * current_dataset_results.columns.values[3:]-3
     map_values = current_dataset_results.values[0,3:]
 
     logger.info('Showing data for {}'.format(residue))
+
     # Set angles
     ang = (start_ang+ang_rel)%360
 
@@ -44,7 +47,7 @@ def normalise_and_sort_ringer_results(current_dataset_results,params):
     sorted_angles = [ang[i] for i in sorted_idx]
     sorted_map_values = [map_values[i] for i in sorted_idx]
 
-    return (sorted_angles,sorted_map_values)
+    return (sorted_angles, sorted_map_values)
 
 
 def linear_interpolate_ringer_results(sorted_angles,sorted_map_values,angle_sampling):

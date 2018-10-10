@@ -224,11 +224,20 @@ def run(params):
     # Name for storage of interpolated results (without residue)
     # TODO Need to swap out length with more appropriate length,
     # TODO as datasets can be skipped if no pdb/mtz
-    interpolate_base_csv = '_{}_Datasets_{}_{}-ringer.csv'.format(len(datasets), map_type, angle_type)
+    interpolate_base_csv = '_{}_Datasets_{}_{}-ringer.csv'.format(len(datasets),
+                                                                  map_type,
+                                                                  angle_type)
 
     # Choose a map_type/angle_type by reducing reference set
     ref_set = ref_set.loc[(ref_set[1] == map_type)]
     ref_set = ref_set.loc[(ref_set[2] == angle_type)]
+
+    for dataset in all_results.iteritems():
+        if len(dataset[1].index.difference(ref_set.index)) > 0:
+            print(dataset[0])
+            print(dataset[1].index.difference(ref_set.index))
+
+
 
     # Iterate through the residues
     for residue, data in ref_set.iterrows():
