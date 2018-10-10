@@ -70,7 +70,7 @@ def three_normal_fix(x,sigma_1,sigma_2,sigma_3,offset):
 ###############################################################################
 def fit_all_datasets(out_dir,ref_set,map_type,angle_type,params,pairwise_type,
                     fit_type = 'three_gaussian_offset', subset= None,
-                    mean_bound = None):
+                    mean_bound = None, datasets=None):
     '''Non Linear Least squares fitting routine, single & multiple gaussian'''
     ###########################################################################
     # Output: CSV file with fit parameters (one file per residue) 
@@ -83,7 +83,7 @@ def fit_all_datasets(out_dir,ref_set,map_type,angle_type,params,pairwise_type,
         if not os.path.exists(os.path.join(out_dir,residue,parameters_csv_filename)):
             start =time.time()                                                                      
             # Reading in interpolated angle data
-            interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue,len(params.input.dir),map_type,angle_type)
+            interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue,len(datasets),map_type,angle_type)
             interpolated_results=pandas.read_csv(os.path.join(out_dir,residue,interpolate_csv), index_col=0)
 
             # select fit type
@@ -207,14 +207,14 @@ def fit_all_datasets(out_dir,ref_set,map_type,angle_type,params,pairwise_type,
 # Generate RMSD between plots and fits
 ###############################################################################
 
-def generate_RMSD(out_dir,ref_set,map_type,angle_type,fit_type,
-                  fit_base_filename,params):
+def generate_RMSD(out_dir, ref_set, map_type, angle_type, fit_type,
+                  fit_base_filename, datasets):
     """ Generate RMSD between data and fits"""
     # Dataframe to store all RMSD values
-    all_RMSD = pandas.DataFrame(index=params.input.dir, columns=ref_set.index.values)
+    all_RMSD = pandas.DataFrame(index=datasets, columns=ref_set.index.values)
     RMSD_filename = 'RMSD, with {}.csv'.format(fit_type)
 
-    if not os.path.exists(os.path.join(out_dir,RMSD_filename)):
+    if not os.path.exists(os.path.join(out_dir, RMSD_filename)):
         for residue, data in ref_set.iterrows():
 
             fit_filename = residue + fit_base_filename
@@ -224,7 +224,7 @@ def generate_RMSD(out_dir,ref_set,map_type,angle_type,fit_type,
 
             # Retrieve list of datasets
             interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue,
-                              len(params.input.dir),map_type,angle_type)
+                              len(datasets),map_type,angle_type)
             interpolated_results = pandas.read_csv(os.path.join(out_dir,residue,
                                                    interpolate_csv), index_col=0)
             interpolated_angles = interpolated_results.columns.values.astype(int)
@@ -263,18 +263,23 @@ def generate_RMSD(out_dir,ref_set,map_type,angle_type,fit_type,
                 output=d**0.5
                 numpy.testing.assert_almost_equal(output,RMSD,decimal=7,
                               err_msg="RMSD not calculated correctly")
+                print(dataset)
+                print(RMSD)
 
                 RMSD_result=pandas.DataFrame(data = RMSD, index = [dataset],
                                                 columns =['RMSD'])
                 RMSD_results = RMSD_results.append(RMSD_result)
 
+            print(residue)
+            print(len(RMSD_results.values))
+            print(RMSD_results)
             all_RMSD.loc[:,residue]= RMSD_results.values
         # Store RMSD for all residues
-        all_RMSD.to_csv(os.path.join(out_dir,RMSD_filename))
+        all_RMSD.to_csv(os.path.join(out_dir, RMSD_filename))
 
 
     #RMSD Histogram
-    RMSD_histogram(all_RMSD,out_dir,RMSD_filename,fit_type)
+    RMSD_histogram(all_RMSD,out_dir, RMSD_filename, fit_type)
 
 
 def calculate_euclidean_distance(out_dir,ref_set,params,fit_type,subset=None):

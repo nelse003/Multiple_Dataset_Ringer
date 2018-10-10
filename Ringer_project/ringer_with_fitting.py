@@ -156,6 +156,7 @@ def run(params):
 
     # Generate ringer results & resolution information
     dataset_counter = 0
+    datasets = []
     for dataset_dir in params.input.dir:
         # Label the dataset by the directory name
         dataset_label = os.path.basename(dataset_dir.rstrip('/'))
@@ -206,8 +207,6 @@ def run(params):
         all_results[dataset_label] = ringer_results
         dataset_resolution.loc[dataset_label] = resolution
 
-    print(dataset_counter)
-    print("###########################################")
     # Resolution to CSV
     if not os.path.exists(resolution_csv_path):
         dataset_resolution.to_csv(resolution_csv_path)
@@ -225,7 +224,7 @@ def run(params):
     # Name for storage of interpolated results (without residue)
     # TODO Need to swap out length with more appropriate length,
     # TODO as datasets can be skipped if no pdb/mtz
-    interpolate_base_csv = '_{}_Datasets_{}_{}-ringer.csv'.format(len(params.input.dir), map_type, angle_type)
+    interpolate_base_csv = '_{}_Datasets_{}_{}-ringer.csv'.format(len(datasets), map_type, angle_type)
 
     # Choose a map_type/angle_type by reducing reference set
     ref_set = ref_set.loc[(ref_set[1] == map_type)]
@@ -244,7 +243,7 @@ def run(params):
 
         # Output filename for correlation data
         correlation_csv = '{}_from {} datasets-correlation-ringer.csv'.format(
-            residue, len(params.input.dir))
+            residue, len(datasets))
 
         if not os.path.exists(os.path.join(params.output.out_dir, residue, interpolate_csv)):
 
@@ -310,7 +309,7 @@ def run(params):
     average_type = "Median"
     if not os.path.exists(os.path.join(params.output.out_dir, '{}_ringer_results'.format(average_type),
                                        '{}_ringer_{}_datasets.csv'.format(average_type,
-                                                                          len(params.input.dir)))):
+                                                                          len(datasets)))):
         average_ringer_plots(base_csv=interpolate_base_csv, ref_set=ref_set,
                              out_dir=params.output.out_dir, params=params,
                              average_type=average_type)
@@ -327,7 +326,7 @@ def run(params):
     ###########################################################################
     # Clustering for correlation
     ###########################################################################
-    correlation_csv_end = '_from {} datasets-correlation-ringer.csv'.format(len(params.input.dir))
+    correlation_csv_end = '_from {} datasets-correlation-ringer.csv'.format(len(datasets))
     min_corr, max_corr = find_pairwise_range(correlation_csv_end, ref_set, params.output.out_dir)
 
     hier_agg_cluster(correlation_csv_end, pairwise_type='correlation',
@@ -352,7 +351,7 @@ def run(params):
         max_peak_angle = []
         # Generate maximal values from interpolated map values
         for residue, data in ref_set.iterrows():
-            interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue, len(params.input.dir), map_type,
+            interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue, len(datasets), map_type,
                                                                        angle_type)
 
             interpolated_results = pandas.read_csv(os.path.join(params.output.out_dir, residue,
@@ -381,16 +380,17 @@ def run(params):
     pairwise_type = 'euclidean distance'
     mean_bound = None
     fit_all_datasets(params.output.out_dir,ref_set,map_type,angle_type,
-                    params,pairwise_type,fit_type, mean_bound = mean_bound)
+                    params,pairwise_type,fit_type, mean_bound = mean_bound,
+                     datasets=datasets)
 
-    fit_base_filename = '_from_{}_datasets_{}.csv'.format(len(params.input.dir)
+    fit_base_filename = '_from_{}_datasets_{}.csv'.format(len(datasets)
                                                           ,fit_type)
     ##########################################################################
     # Generate RMSD between fit and data. Plot histogram of all RMSD values,
     # Store RMSD values in single CSV for the fit type
     #########################################################################
     generate_RMSD(params.output.out_dir, ref_set, map_type, angle_type, fit_type,
-                  fit_base_filename, params=params)
+                  fit_base_filename, datasets=all_results.keys())
 
     ###########################################################################
     # Calculate Euclidean distance
