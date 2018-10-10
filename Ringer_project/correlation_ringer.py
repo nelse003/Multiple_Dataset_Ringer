@@ -14,9 +14,6 @@ def correlation_single_residue(input_csv,residue,output_dir,params,
     """Generate correlation matrix as csv"""
     # read in csv 
     data = pandas.read_csv(input_csv,index_col=0)
-    assert (len(data) == len(params.input.dir)),(
-           'Input CSV data is length {} for {} datasets.'
-           'Lengths should match'.format(len(data)+1,len(params.input.dir)))
 
     dataset_labels=data.index.values
     all_map_values=data.values
@@ -31,7 +28,6 @@ def correlation_single_residue(input_csv,residue,output_dir,params,
     print(output_dir)
     print(out_filename)
     print(os.path.join(output_dir, out_filename))
-    exit()
     # Correlation data as CSV 
     correlation_data.to_csv(os.path.join(output_dir,out_filename))
     

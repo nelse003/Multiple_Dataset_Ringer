@@ -58,8 +58,7 @@ def hier_agg_cluster(base_input_csv,pairwise_type,ref_set,out_dir,params,
                                pairwise_type,fit_type,subset,incons_threshold,
                                depth)
         linkage_matrix, dataset_labels = generate_linkage_matrix(os.path.join(out_dir,
-                                                 residue,input_csv),
-                                                 params=params)
+                                                                              residue, input_csv))
 
         if not os.path.exists(os.path.join(out_dir,residue,dendrogram_filename)):
             start=time.time()
@@ -132,17 +131,12 @@ def hier_agg_cluster(base_input_csv,pairwise_type,ref_set,out_dir,params,
             number_clusters_histogram(num_cluster_all,cluster_number_hist,
                                   out_dir)
 
-def generate_linkage_matrix(pairwise_csv,params):
+def generate_linkage_matrix(pairwise_csv):
     """ Generate Linkage matrix """
 
     # Load csv into pandas DataFrame
     data = pandas.read_csv(pairwise_csv, index_col=0)
     dataset_labels = data.columns.values
-
-    assert (len(data) == len(params.input.dir)),(
-           'Input CSV data is length {} for {} datasets.' 
-           'Lengths should match'.format(len(data)+1,len(params.input.dir)))
-
     # Generate linkage matrix 
     linkage_matrix = linkage(data.values, "single")
 

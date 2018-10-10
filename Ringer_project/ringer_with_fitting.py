@@ -130,6 +130,9 @@ def run(params):
     Process ringer uses 2FOFCWT, PHI2FOFCWT columns. 
     Handle other columns by moving to input check.
 
+    Example
+    ------------------
+
     """
 
     # Dictionary to store all of the
@@ -148,6 +151,7 @@ def run(params):
                                           columns=['Resolution'])
 
     # Generate ringer results & resolution information
+    dataset_counter = 0
     for dataset_dir in params.input.dir:
         # Label the dataset by the directory name
         dataset_label = os.path.basename(dataset_dir.rstrip('/'))
@@ -173,6 +177,7 @@ def run(params):
                 dataset_dir, params.input.mtz_style))
             continue
 
+        dataset_counter += 1
 
         # Process dataset with ringer and convert results to DataFrame
         ringer_csv, resolution = process_with_ringer(pdb=pdb,
@@ -182,8 +187,6 @@ def run(params):
                                                      resolution_csv_path=resolution_csv_path)
 
         ringer_results = pandas.DataFrame.from_csv(ringer_csv, header=None)
-
-        # Unsure of why ringer results need indices renaming?
 
         # Change order of residue name.
         # This is needed for the comparison:
@@ -198,6 +201,8 @@ def run(params):
         all_results[dataset_label] = ringer_results
         dataset_resolution.loc[dataset_label] = resolution
 
+    print(dataset_counter)
+    print("###########################################")
     # Resolution to CSV
     if not os.path.exists(resolution_csv_path):
         dataset_resolution.to_csv(resolution_csv_path)
@@ -213,7 +218,7 @@ def run(params):
     angle_type = 'chi1'
 
     # Name for storage of interpolated results (without residue)
-    # TODO Need to swap out length with more appropriate lenght,
+    # TODO Need to swap out length with more appropriate length,
     # TODO as datasets can be skipped if no pdb/mtz
     interpolate_base_csv = '_{}_Datasets_{}_{}-ringer.csv'.format(len(params.input.dir), map_type, angle_type)
 
@@ -282,12 +287,9 @@ def run(params):
                 ' for these {} datasets'.format(residue,
                                                len(params.input.dir)))
 
-        print("OUT")
         # Generate correlation CSV
         if not os.path.exists(os.path.join(params.output.out_dir,
                                            residue, correlation_csv)):
-
-            print("IN")
 
             correlation_single_residue(input_csv=os.path.join(params.output.out_dir,
                                                               residue,
@@ -358,7 +360,7 @@ def run(params):
                                                                 interpolate_csv), index_col=0)
             assert (len(interpolated_results) == len(params.input.dir)), (
                 'Input CSV data is length {} for {} datasets.'
-                'Lengths should match'.format(len(interpoalted_results) + 1, len(params.input.dir)))
+                'Lengths should match'.format(len(interpoalted_results) + 1, dataset_counter))
 
             angle_with_max_map = (interpolated_results.idxmax(axis=1).values).astype(numpy.float)
             max_peak_angle.append(angle_with_max_map)
