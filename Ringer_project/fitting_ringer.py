@@ -86,10 +86,6 @@ def fit_all_datasets(out_dir,ref_set,map_type,angle_type,params,pairwise_type,
             interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue,len(params.input.dir),map_type,angle_type)
             interpolated_results=pandas.read_csv(os.path.join(out_dir,residue,interpolate_csv), index_col=0)
 
-            assert (len(interpolated_results) == len(params.input.dir)),(
-                   'Input CSV data is length {} for {} datasets.'
-                    'Lengths should match'.format(len(interpolated_results)+1,len(params.input.dir)))
-
             # select fit type
             if fit_type in ('three_gaussian_offset',
                             'positive_amplitude_three_gaussian_offset'):
@@ -131,9 +127,30 @@ def fit_all_datasets(out_dir,ref_set,map_type,angle_type,params,pairwise_type,
                 # popt returnd best fit values for parameters of the model
                 # pcov contains covariance matrix for the fit
                 if fit_type == 'three_gaussian_offset':
-                    popt, pcov = curve_fit(three_gaussian_offset, interpolated_angles,
-                                           interpolated_row, p0 = initialise_three,
-                                           ftol=1e-4, bounds = bounds)
+
+                    popt, pcov = curve_fit(f=three_gaussian_offset,
+                                           xdata=interpolated_angles,
+                                           ydata=interpolated_row,
+                                           p0=initialise_three,
+                                           ftol=1e-4,
+                                           maxfev=20000)
+
+                    # TODO work out development environment which allows
+                    # TODO running scipy > 0.17
+
+                    # Non compatible with scipy 0.16.1,
+                    # due to keyword bounds. This is version distributed
+                    # with ccp4-python and cannot easily be updated.
+                    # Previously nick's version of panddas python
+                    # had updated scipy
+
+                    # popt, pcov = curve_fit(f=three_gaussian_offset,
+                    #                        xdata=interpolated_angles,
+                    #                        ydata=interpolated_row,
+                    #                        p0=initialise_three,
+                    #                        ftol=1e-4,
+                    #                        bounds = bounds,
+                    #                        method='trf')
                     y_fit = three_gaussian_offset(interpolated_angles, popt[0],popt[1],
                                          popt[2], popt[3], popt[4], popt[5],
                                          popt[6], popt[7], popt[8], popt[9])
@@ -154,48 +171,6 @@ def fit_all_datasets(out_dir,ref_set,map_type,angle_type,params,pairwise_type,
                     y_fit = three_gaussian_offset(interpolated_angles, popt[0],popt[1],
                                          popt[2], popt[3], popt[4], popt[5],
                                          popt[6], popt[7], popt[8], popt[9])
-
-
-
-                # Non linear least sqaures Curve fit on data:
-                # popt returnd best fit values for parameters of the model
-                # pcov contains covariance matrix for the fit
-                if fit_type == 'three_gaussian_offset':
-                    popt, pcov = curve_fit(three_gaussian_offset,
-                                           interpolated_angles,
-                                           interpolated_row, 
-                                           p0 = initialise_three,
-                                           ftol=1e-4, bounds = bounds)
-
-                    y_fit = three_gaussian_offset(interpolated_angles, popt[0],
-                                         popt[1],popt[2], popt[3], popt[4], 
-                                         popt[5],popt[6], popt[7], popt[8],
-                                         popt[9])
-
-                if fit_type == 'three_gaussian_fix':
-                    popt, pcov = curve_fit(three_gaussian_fix,
-                                           interpolated_angles,interpolated_row,                                           p0 = initialise_three,
-                                           ftol=1e-4)
-
-                    y_fit = three_gaussian_offset(interpolated_angles, popt[0],
-                                                  popt[1],popt[2], popt[3], 
-                                                  popt[4], popt[5], popt[6])
-
-                if fit_type == 'positive_amplitude_three_gaussian_offset':
-                    # Set Amplitude lower bounds to zero
-                    bounds[0][0]=0;bounds[0][3]=0;bounds[0][6]=0
-                    # Run fit
-                    popt, pcov = curve_fit(three_gaussian_offset,
-                                           interpolated_angles,
-                                           interpolated_row, 
-                                           p0 = initialise_three,
-                                           ftol=1e-4, bounds = bounds)
-                    # Fitted Data
-                    y_fit = three_gaussian_offset(interpolated_angles, popt[0],
-                                         popt[1],popt[2], popt[3], popt[4], 
-                                         popt[5],popt[6], popt[7], popt[8], 
-                                         popt[9])
-
 
                 # Set Inital parameters to the first fit for all other fits    
                 if not initialised:
@@ -225,10 +200,9 @@ def fit_all_datasets(out_dir,ref_set,map_type,angle_type,params,pairwise_type,
 
             end=time.time()
             duration = end-start
-            logger.info('{} fits for {} datasets in {} seconds'.format(residue,
-                        len(params.input.dir),duration))
+            logger.info('{} fits  in {} seconds'.format(residue, duration))
         else:
-            logger.info('{} Fitting already undertaken, for these {} datasets'.format(residue,len(params.input.dir)))
+            logger.info('{} Fitting already undertaken'.format(residue))
 #############################################################################
 # Generate RMSD between plots and fits
 ###############################################################################

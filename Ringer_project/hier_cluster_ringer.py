@@ -1,8 +1,3 @@
-#!/usr/bin/env pandda.python
-
-###############################################################################
-# Packages
-##############################################################################
 import os, sys, copy, glob
 
 import pandas,numpy,time
@@ -11,6 +6,11 @@ import pandas,numpy,time
 from scipy.cluster.hierarchy import linkage, fcluster
 
 import logging
+
+# Imported functions
+from plotting_ringer import plot_dendrogram, number_clusters_histogram
+
+###############################################################
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
@@ -26,23 +26,16 @@ ch.setFormatter(formatter)
 logger.addHandler(ch)
 
 
-###############################################################################
-# Functions
-##############################################################################
+###################################################################
+# Hierarichial agglomerative clustering used for selecting out
+# datasets that are consitently different (Inconsitency condition)
+###################################################################
 
-# Imported functions
-from plotting_ringer import (plot_dendrogram,number_clusters_histogram)
-
-###############################################################################
-# Hierarichial agglomerative clustering used for selecting out datasets that 
-# are consitently different (Inconsitency condition)
-###############################################################################
-
-def hier_agg_cluster(base_input_csv,pairwise_type,ref_set,out_dir,params,
-                     fit_type = '',subset ='',incons_threshold = 3,depth = 10):
+def hier_agg_cluster(base_input_csv, pairwise_type, ref_set, out_dir, params,
+                     fit_type = '', subset ='', incons_threshold = 3, depth = 10):
     """ Hierarichial agglomerative clustering"""
     # Generate range over which metric ranges
-    min_range, max_range = find_pairwise_range(base_input_csv,ref_set,out_dir,params)
+    min_range, max_range = find_pairwise_range(base_input_csv, ref_set, out_dir)
 
     num_cluster_all=[]
     clusters_weight = pandas.DataFrame(index = ref_set.index.values , columns = params.input.dir)   
@@ -66,10 +59,11 @@ def hier_agg_cluster(base_input_csv,pairwise_type,ref_set,out_dir,params,
                             dendrogram_filename, dataset_labels= dataset_labels)
             end= time.time()
             duration = end-start
-            logger.info('{}: Dendrogram ({}) for {} datasets generated in {} seconds.'.format(
-                        residue,pairwise_type,len(params.input.dir),duration))
+            logger.info('{}: Dendrogram ({}) generated in {} seconds.'.format(
+                        residue, pairwise_type, duration))
         else:
-            logger.info('{}: Dendrogram already generated for {} with {}'.format(residue, pairwise_type,fit_type))
+            logger.info('{}: Dendrogram already generated for {} '
+                        'with {}'.format(residue, pairwise_type, fit_type))
 
         #######################################################################
         # Clustering using inconsitency matrix.
@@ -78,8 +72,8 @@ def hier_agg_cluster(base_input_csv,pairwise_type,ref_set,out_dir,params,
         #####################################################################
         if not os.path.exists(os.path.join(out_dir,clusters_weight_filename)):
 
-            cluster_groups = fcluster(linkage_matrix,incons_threshold,depth = depth)
-            clusters = pandas.DataFrame(data = cluster_groups,index =params.input.dir)
+            cluster_groups = fcluster(linkage_matrix, incons_threshold, depth = depth)
+            clusters = pandas.DataFrame(data = cluster_groups)
             clusters.columns = ['Cluster_number']
             number_of_clusters = clusters.values.max()
             # group into clusters
@@ -142,7 +136,7 @@ def generate_linkage_matrix(pairwise_csv):
 
     return linkage_matrix, dataset_labels
 
-def find_pairwise_range(pairwise_csv_end, ref_set, out_dir, params):
+def find_pairwise_range(pairwise_csv_end, ref_set, out_dir):
     """ Find minimum value across all pairwise correlations"""
 
     pairwise_min=[]
@@ -151,15 +145,8 @@ def find_pairwise_range(pairwise_csv_end, ref_set, out_dir, params):
     for residue, data in ref_set.iterrows():
 
         pairwise_csv='{}'.format(residue) + pairwise_csv_end
-
         # Load csv into pandas DataFrame
         data = pandas.read_csv(os.path.join(out_dir, residue, pairwise_csv), index_col=0)
-        assert (len(data) == len(params.input.dir)),(
-           'Input CSV data is length {} for {} datasets.'
-           'Lengths should match'.format(len(data)+1,len(params.input.dir)))
-
-        dataset_labels = data.columns.values
-
         pairwise_min.append(min(data.min()))
         pairwise_max.append(max(data.max()))
 

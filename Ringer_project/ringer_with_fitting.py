@@ -32,20 +32,24 @@ from process_ringer import process_with_ringer
 from interpolate_ringer import (linear_interpolate_ringer_results,
                                 normalise_and_sort_ringer_results)
 # Plotting functions
-from plotting_ringer import (line_plot_ringer, multiple_line_plot_ringer,
+from plotting_ringer import (line_plot_ringer,
+                             multiple_line_plot_ringer,
                              average_ringer_plots,
                              plot_correlation_vs_fitting,
                              plot_resloution_vs_dataset_score,
-                             plot_RMSD_vs_dataset_score, plot_RMSD_vs_resolution,
-                             plot_RMSD_vs_residue_score, peak_angle_histogram,
-                             cluster_heatmap, pairwise_heatmap)
+                             plot_RMSD_vs_dataset_score,
+                             plot_RMSD_vs_resolution,
+                             plot_RMSD_vs_residue_score,
+                             peak_angle_histogram,
+                             cluster_heatmap,
+                             pairwise_heatmap)
 
 # Hierarichal clustering functions
 from hier_cluster_ringer import (hier_agg_cluster, find_pairwise_range)
 
 # Fitting functions
-# from fitting_ringer import (fit_all_datasets, generate_RMSD,
-#                            calculate_euclidean_distance)
+from fitting_ringer import (fit_all_datasets, generate_RMSD,
+                           calculate_euclidean_distance)
 
 # Correlation functions
 from correlation_ringer import correlation_single_residue
@@ -180,11 +184,12 @@ def run(params):
         dataset_counter += 1
 
         # Process dataset with ringer and convert results to DataFrame
-        ringer_csv, resolution = process_with_ringer(pdb=pdb,
-                                                     mtz=mtz,
-                                                     angle_sampling=params.settings.angle_sampling,
-                                                     output_dir=dataset_dir,
-                                                     resolution_csv_path=resolution_csv_path)
+        ringer_csv, resolution = \
+            process_with_ringer(pdb=pdb,
+                                mtz=mtz,
+                                angle_sampling=params.settings.angle_sampling,
+                                output_dir=dataset_dir,
+                                resolution_csv_path=resolution_csv_path)
 
         ringer_results = pandas.DataFrame.from_csv(ringer_csv, header=None)
 
@@ -283,9 +288,7 @@ def run(params):
                                                  interpolate_csv))
         else:
             logger.info(
-                '{}: Interpolated CSVs already generated,'
-                ' for these {} datasets'.format(residue,
-                                               len(params.input.dir)))
+                '{}: Interpolated CSVs already generated,'.format(residue))
 
         # Generate correlation CSV
         if not os.path.exists(os.path.join(params.output.out_dir,
@@ -299,8 +302,7 @@ def run(params):
                                        out_filename=correlation_csv,
                                        params=params)
         else:
-            logger.info('{}: Correlation CSV already generated, for these {} datasets'.format(residue, len(
-                params.input.dir)))
+            logger.info('{}: Correlation CSV already generated,'.format(residue))
 
     ##########################################################################
     # Generate Average Ringer Plots
@@ -326,10 +328,7 @@ def run(params):
     # Clustering for correlation
     ###########################################################################
     correlation_csv_end = '_from {} datasets-correlation-ringer.csv'.format(len(params.input.dir))
-    min_corr, max_corr = find_pairwise_range(correlation_csv_end,
-                                             ref_set,
-                                             params.output.out_dir,
-                                             params)
+    min_corr, max_corr = find_pairwise_range(correlation_csv_end, ref_set, params.output.out_dir)
 
     hier_agg_cluster(correlation_csv_end, pairwise_type='correlation',
                      ref_set=ref_set, out_dir=params.output.out_dir, params=params)
@@ -358,9 +357,10 @@ def run(params):
 
             interpolated_results = pandas.read_csv(os.path.join(params.output.out_dir, residue,
                                                                 interpolate_csv), index_col=0)
-            assert (len(interpolated_results) == len(params.input.dir)), (
-                'Input CSV data is length {} for {} datasets.'
-                'Lengths should match'.format(len(interpoalted_results) + 1, dataset_counter))
+
+            assert len(interpolated_results) == dataset_counter,\
+                ('Input CSV data is length {} for {} datasets.'
+                'Lengths should match'.format(len(interpolated_results), dataset_counter))
 
             angle_with_max_map = (interpolated_results.idxmax(axis=1).values).astype(numpy.float)
             max_peak_angle.append(angle_with_max_map)
