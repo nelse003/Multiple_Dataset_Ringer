@@ -128,6 +128,13 @@ def run(params):
 
     Example
     ------------------
+    Command Line
+    
+    ccp4-python ringer_with_fitting.py \
+    /hdlocal/home/enelson/DCP2B_ringer_test/*/ \
+    input.pdb_style="refine.pdb" \
+    input.mtz_style="refine.mtz" \
+    output.out_dir="/hdlocal/home/enelson/DCP2B_ringer_test/output_test"
 
     """
 
@@ -218,11 +225,14 @@ def run(params):
     ref_set = ref_set.loc[(ref_set[1] == params.settings.map_type)]
     ref_set = ref_set.loc[(ref_set[2] == params.settings.angle_type)]
 
+    # Initial code for the renaming of dataset residues
+    # i.e VAL A97 != VAL D97
+    # But these are likely just a naming error
+    # Appears only in the case of dimple.pdb files
     for dataset in all_results.iteritems():
         if len(dataset[1].index.difference(ref_set.index)) > 0:
             print(dataset[0])
             print(dataset[1].index.difference(ref_set.index))
-
 
 
     # Iterate through the residues
@@ -432,13 +442,6 @@ def run(params):
     # Heirichal Clustering, Average linakge, for pairwise euclidean
     # distances for each residue
     ###################################################################
-
-    print(euclidean_base_csv)
-    print(pairwise_type)
-    print(ref_set)
-    print(params.output.out_dir)
-    print(datasets)
-    print("______________________________________")
 
     hier_agg_cluster(euclidean_base_csv,
                      pairwise_type,
