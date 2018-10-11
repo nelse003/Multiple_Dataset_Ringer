@@ -32,31 +32,46 @@ logger.addHandler(ch)
 ###################################################################
 
 def hier_agg_cluster(base_input_csv, pairwise_type, ref_set, out_dir, params,
-                     fit_type = '', subset ='', incons_threshold = 3, depth = 10):
+                     datasets, fit_type = '', subset ='',
+                     incons_threshold = 3, depth = 10):
+
     """ Hierarichial agglomerative clustering"""
+
     # Generate range over which metric ranges
     min_range, max_range = find_pairwise_range(base_input_csv, ref_set, out_dir)
 
     num_cluster_all=[]
-    clusters_weight = pandas.DataFrame(index = ref_set.index.values , columns = params.input.dir)   
+    clusters_weight = pandas.DataFrame(index = ref_set.index.values,
+                                       columns = datasets)
 
-    clusters_weight_filename = 'Adj_clusters_weight_{}_{}_{}.csv'.format(pairwise_type,fit_type,subset)
+    clusters_weight_filename = 'Adj_clusters_weight_{}_{}_{}.csv'.format(
+        pairwise_type, fit_type ,subset)
 
     for residue, data in ref_set.iterrows():
         input_csv = '{}'.format(residue) + base_input_csv
 
         # Generate Linkage matrix and dendrogram 
-        dendrogram_filename = '{}_{}_{}_{}_dendrogram.png'.format(residue,pairwise_type,fit_type,subset)
-        cluster_number_hist = 'number_cluster_{}_{}_{}_{}_{}.png'.format(
-                               pairwise_type,fit_type,subset,incons_threshold,
-                               depth)
-        linkage_matrix, dataset_labels = generate_linkage_matrix(os.path.join(out_dir,
-                                                                              residue, input_csv))
+        dendrogram_filename = '{}_{}_{}_{}_dendrogram.png'.format(residue,
+                                                                  pairwise_type,
+                                                                  fit_type,
+                                                                  subset)
 
-        if not os.path.exists(os.path.join(out_dir,residue,dendrogram_filename)):
+        cluster_number_hist = 'number_cluster_{}_{}_{}_{}_{}.png'.format(
+            pairwise_type, fit_type, subset, incons_threshold, depth)
+
+        linkage_matrix, dataset_labels = generate_linkage_matrix(
+            os.path.join(out_dir, residue, input_csv))
+
+        if not os.path.exists(os.path.join(out_dir,
+                                           residue,
+                                           dendrogram_filename)):
             start=time.time()
-            plot_dendrogram(linkage_matrix,out_dir,residue,pairwise_type,
-                            dendrogram_filename, dataset_labels= dataset_labels)
+            plot_dendrogram(linkage_matrix,
+                            out_dir,
+                            residue,
+                            pairwise_type,
+                            dendrogram_filename,
+                            dataset_labels=dataset_labels)
             end= time.time()
             duration = end-start
             logger.info('{}: Dendrogram ({}) generated in {} seconds.'.format(
@@ -109,7 +124,10 @@ def hier_agg_cluster(base_input_csv, pairwise_type, ref_set, out_dir, params,
                             residue,pairwise_type,fit_type,len(params.input.dir)
                             ,duration))
             else:
-                logger.info('{}: Heatmap already generated for {} with {} and {}'.format(residue, pairwise_type,fit_type, subset))
+                logger.info('{}: Heatmap already generated for '
+                            '{} with {} and {}'.format(residue,
+                                                       pairwise_type,
+                                                       fit_type, subset))
         else:
             logger.info('Skip Heatmap')
 

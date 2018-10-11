@@ -208,8 +208,8 @@ def augmented_dendrogram(*args, **kwargs):
     return ddata
 
 
-def plot_dendrogram(linkage_matrix,out_dir,residue,pairwise_type,plot_filename,
-                    dataset_labels):
+def plot_dendrogram(linkage_matrix, out_dir, residue, pairwise_type,
+                    plot_filename, dataset_labels):
     # Plotting dendorgram
     fig = myfig(figsize=(10,10))
     pyplot.clf()
@@ -217,16 +217,20 @@ def plot_dendrogram(linkage_matrix,out_dir,residue,pairwise_type,plot_filename,
                                 truncate_mode='lastp',labels=dataset_labels)
     pyplot.gcf().subplots_adjust(bottom=0.25)
     pyplot.xticks(rotation=90)
-    pyplot.title("{} {} Dendrogram".format(residue,pairwise_type))
+    pyplot.title("{} {} Dendrogram".format(residue, pairwise_type))
     pyplot.ylabel("Cophenetic distance")
-    pyplot.savefig(os.path.join(out_dir,residue,plot_filename))
+    pyplot.savefig(os.path.join(out_dir, residue, plot_filename))
     pyplot.close()
 
-def plot_correlation_vs_fitting(out_dir,dataset_corr_score,dataset_score):
+def plot_correlation_vs_fitting(out_dir, dataset_corr_score, dataset_score):
 
     fig = myfig() 
     fig, ax = pyplot.subplots(1)
-    ax.scatter(dataset_corr_score,dataset_score)
+
+    print(len(dataset_corr_score))
+    print(len(dataset_score))
+
+    ax.scatter(dataset_corr_score, dataset_score)
     pyplot.xlabel('Dataset score: correlation')
     pyplot.ylabel('Dataset score: Amplitude only fit')
     ax.set_xlim(left =0)
@@ -444,7 +448,7 @@ def pairwise_heatmap(pairwise_csv, residue, out_dir,pairwise_type,
     pyplot.close(fig)
 
 
-def cluster_heatmap(input_csv, out_dir, pairwise_type,fit_type, subset):
+def cluster_heatmap(input_csv, out_dir, pairwise_type, fit_type, subset):
     """Plot heatmap from csv file with pairwise comparisons between datasets"""
 
     # Load csv into pandas DataFrame
@@ -484,7 +488,10 @@ def cluster_heatmap(input_csv, out_dir, pairwise_type,fit_type, subset):
     ax.set_frame_on(False)
 
     # Set tick positions
-    ax.set(xticks=numpy.arange(len(dataset_labels))+0.5,xticklabels=dataset_labels,yticks = numpy.arange(len(residue_labels))+0.5,yticklabels=residue_labels)      #ax.set_xticks()
+    ax.set(xticks=numpy.arange(len(dataset_labels)) + 0.5,
+           xticklabels=dataset_labels,
+           yticks = numpy.arange(len(residue_labels)) + 0.5,
+           yticklabels=residue_labels)
 
     #Set a table like display
     ax.invert_yaxis()
