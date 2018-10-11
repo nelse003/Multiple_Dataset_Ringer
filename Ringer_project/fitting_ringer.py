@@ -324,7 +324,7 @@ def calculate_euclidean_distance(out_dir, ref_set, params,
 
     '''Calculates and store pairwise euclidean distances'''
 
-    euclidean_base_csv = 'euclidean_distances_from_{}_datasets_{}'.format(len(params.input.dir), fit_type)
+    euclidean_base_csv = 'euclidean_distances_from_{}_datasets_{}'.format(len(datasets), fit_type)
     # Selecting a subset of parameters to perform clustering on
     if subset is not None:
         # set pairwise type so output filename changes 
@@ -337,13 +337,13 @@ def calculate_euclidean_distance(out_dir, ref_set, params,
             start=time.time()
             # Read data from csv
             parameters_csv_filename = '{}_from_{}_datasets_{}.csv'.format(
-                                      residue,len(params.input.dir),fit_type)
+                                      residue,len(datasets),fit_type)
             fit_parameters=pandas.read_csv(os.path.join(out_dir,residue,parameters_csv_filename),   
                                   index_col=0, header=0)
 
             assert (len(fit_parameters) == len(datasets)),(
                     'Input CSV data is length {} for {} datasets.'
-                    'Lengths should match'.format(len(fit_parameters), len(params.input.dir)))
+                    'Lengths should match'.format(len(fit_parameters), len(datasets)))
 
             euclidean_distance=pandas.DataFrame(index=fit_parameters.index, columns=fit_parameters.index)
 
@@ -371,7 +371,7 @@ def calculate_euclidean_distance(out_dir, ref_set, params,
                                             len(datasets),
                                             duration))
         else:
-            logger.info('{}: Euclidean distance already calculated for these {} datasets'.format(residue,len(params.input.dir)))
+            logger.info('{}: Euclidean distance already calculated for these {} datasets'.format(residue,len(datasets)))
 
     return euclidean_base_csv
 

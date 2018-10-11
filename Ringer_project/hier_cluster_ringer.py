@@ -31,18 +31,43 @@ logger.addHandler(ch)
 # datasets that are consitently different (Inconsitency condition)
 ###################################################################
 
-def hier_agg_cluster(base_input_csv, pairwise_type, ref_set, out_dir, params,
-                     datasets, fit_type = '', subset ='',
-                     incons_threshold = 3, depth = 10):
+def hier_agg_cluster(base_input_csv,
+                     pairwise_type,
+                     ref_set,
+                     out_dir,
+                     params,
+                     datasets=None,
+                     fit_type = '',
+                     subset ='',
+                     incons_threshold = 3,
+                     depth = 10):
 
-    """ Hierarichial agglomerative clustering"""
+    """ Hierarichial agglomerative clustering
+    
+    Hierarichial agglomerative clustering used for selecting out
+    datasets that are consitently different (Inconsitency condition).
+    
+    """
 
     # Generate range over which metric ranges
     min_range, max_range = find_pairwise_range(base_input_csv, ref_set, out_dir)
 
     num_cluster_all=[]
-    clusters_weight = pandas.DataFrame(index = ref_set.index.values,
-                                       columns = datasets)
+
+    print(base_input_csv)
+    print("+++++++++++++")
+    print(pairwise_type)
+    print("--------------")
+    print(datasets)
+    print(")))))))))))")
+    print(ref_set)
+    print("*************")
+    print(ref_set.index)
+    print("!!!!!!!!!!!!!!!!!")
+    print(ref_set.index.values)
+    print("$$$$$$$$$$$$")
+    clusters_weight = pandas.DataFrame(index=ref_set.index.values,
+                                       columns=datasets)
 
     clusters_weight_filename = 'Adj_clusters_weight_{}_{}_{}.csv'.format(
         pairwise_type, fit_type ,subset)
@@ -109,7 +134,10 @@ def hier_agg_cluster(base_input_csv, pairwise_type, ref_set, out_dir, params,
         heatmap_filename = '{}_{}_{}_{}_heatmap.png'.format(residue,pairwise_type,
                                                             fit_type,subset)
         if params.settings.gen_heatmap == True:
-            if not os.path.exists(os.path.join(out_dir,residue,heatmap_filename)):
+            if not os.path.exists(os.path.join(out_dir,
+                                               residue,
+                                               heatmap_filename)):
+
                 start = time.time()
                 pairwise_heatmap(os.path.join(out_dir,residue,input_csv),
                                 residue=residue,out_dir = out_dir,
@@ -120,9 +148,10 @@ def hier_agg_cluster(base_input_csv, pairwise_type, ref_set, out_dir, params,
                                 params = params)
                 end = time.time()
                 duration = end-start
-                logger.info('{}: Heatmap ({} with {}) for {} datasets generated in {} seconds.'.format(
-                            residue,pairwise_type,fit_type,len(params.input.dir)
-                            ,duration))
+                logger.info('{}: Heatmap ({} with {}) for {} '
+                            'datasets generated in {} seconds.'.format(
+                    residue, pairwise_type, fit_type,
+                    len(params.input.dir) ,duration))
             else:
                 logger.info('{}: Heatmap already generated for '
                             '{} with {} and {}'.format(residue,
@@ -132,16 +161,17 @@ def hier_agg_cluster(base_input_csv, pairwise_type, ref_set, out_dir, params,
             logger.info('Skip Heatmap')
 
     # Send cluster weights to file
-    if not os.path.exists(os.path.join(out_dir,clusters_weight_filename)):
-        clusters_weight.to_csv(os.path.join(out_dir,clusters_weight_filename))
+    if not os.path.exists(os.path.join(out_dir, clusters_weight_filename)):
+        clusters_weight.to_csv(os.path.join(out_dir, clusters_weight_filename))
 
     # Histogram
-    if not os.path.exists(os.path.join(out_dir,cluster_number_hist)):
+    if not os.path.exists(os.path.join(out_dir, cluster_number_hist)):
         if not num_cluster_all:
             logger.info("Number of cluster not generated")
         else:
-            number_clusters_histogram(num_cluster_all,cluster_number_hist,
-                                  out_dir)
+            number_clusters_histogram(num_cluster_all,
+                                      cluster_number_hist,
+                                      out_dir)
 
 def generate_linkage_matrix(pairwise_csv):
     """ Generate Linkage matrix """

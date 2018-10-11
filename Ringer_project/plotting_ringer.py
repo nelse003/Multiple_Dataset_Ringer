@@ -241,18 +241,27 @@ def plot_correlation_vs_fitting(out_dir, dataset_corr_score, dataset_score):
                    'dataset_score_correlation_fitting_vs_correlation.png'))
     pyplot.close()
 
-def plot_resloution_vs_dataset_score(out_dir,dataset_score,dataset_means_score,
+def plot_resloution_vs_dataset_score(out_dir,
+                                     dataset_score,
+                                     dataset_means_score,
                                      dataset_resolution):
+
     fig, (ax1,ax2) = pyplot.subplots(2, sharex=True, sharey = True)
-    ax1.scatter(dataset_resolution,dataset_score,label='Amplitude Fit')
-    ax2.scatter(dataset_resolution,dataset_means_score,
+
+    ax1.scatter(dataset_resolution ,dataset_score, label='Amplitude Fit')
+    ax2.scatter(dataset_resolution, dataset_means_score,
                    label = 'Amplitude & Means fit')
     ax1.set_ylim(bottom = 0)
     ax1.set_title('Amplitude fit')
     ax2.set_title('Amplitude & Means fit')
     pyplot.xlabel('Resolution')
-    fig.text(0.04,0.5,'Dataset score',va='center', rotation='vertical')
-    pyplot.savefig(os.path.join(out_dir,'Resolution_dataset_score.png'))
+    fig.text(0.04,
+             0.5,
+             'Dataset score',
+             va='center',
+             rotation='vertical')
+
+    pyplot.savefig(os.path.join(out_dir, 'Resolution_dataset_score.png'))
     pyplot.close()
 
 def plot_RMSD_vs_dataset_score(out_dir,all_RMSD,dataset_score,bound_ligands):

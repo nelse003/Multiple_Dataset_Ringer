@@ -208,9 +208,6 @@ def run(params):
     # Pull out the "first" ringer results set as a reference
     ref_set = all_results.values()[0]
 
-    # Map and angle types currently selected to analyse
-    angle_type = 'chi1'
-
     # Name for storage of interpolated results (without residue)
     interpolate_base_csv = \
         '_{}_Datasets_{}_{}-ringer.csv'.format(len(datasets),
@@ -326,9 +323,9 @@ def run(params):
     #                      bold_blue_map=None)
 
 
-    ###########################################################################
+    #################################
     # Clustering for correlation
-    ###########################################################################
+    #################################
     correlation_csv_end = '_from {} datasets-correlation-ringer.csv'.format(len(datasets))
     min_corr, max_corr = find_pairwise_range(correlation_csv_end, ref_set, params.output.out_dir)
 
@@ -339,9 +336,9 @@ def run(params):
                      out_dir=params.output.out_dir,
                      params=params)
 
-    ##########################################################################
+    #################################################
     # Generate heatmaps from clustering:Correlation
-    ###########################################################################
+    #################################################
     clusters_weight_filename = 'Adj_clusters_weight_{}_{}_{}.csv'.format('correlation', '', '')
 
     if not os.path.exists(os.path.join(params.output.out_dir,
@@ -353,37 +350,40 @@ def run(params):
             fit_type='',
             subset='')
 
-    ###########################################################################
+    ###################################################################
     # Generating histogram to show the location of the maximal points 
     # of peak in ringer plot. Shows three rotamer bins [60, 180, 300] 
-    ###########################################################################
+    ###################################################################
 
-    if not os.path.exists(os.path.join(params.output.out_dir, 'Modal_peak_location.png')):
+    if not os.path.exists(os.path.join(params.output.out_dir,
+                                       'Modal_peak_location.png')):
 
         max_peak_angle = []
         # Generate maximal values from interpolated map values
         for residue, data in ref_set.iterrows():
-            interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue, len(datasets), params.settings.map_type,
+            interpolate_csv = '{}_{}_Datasets_{}_{}-ringer.csv'.format(residue,
+                                                                       len(datasets),
+                                                                       params.settings.map_type,
                                                                        params.settings.angle_type)
 
-            interpolated_results = pandas.read_csv(os.path.join(params.output.out_dir, residue,
-                                                                interpolate_csv), index_col=0)
+            interpolated_results = pandas.read_csv(
+                os.path.join(params.output.out_dir, residue, interpolate_csv),
+                index_col=0)
 
-            assert len(interpolated_results) == dataset_counter,\
+            assert len(interpolated_results) == len(datasets),\
                 ('Input CSV data is length {} for {} datasets.'
-                'Lengths should match'.format(len(interpolated_results), dataset_counter))
+                'Lengths should match'.format(len(interpolated_results), len(datasets)))
 
             angle_with_max_map = (interpolated_results.idxmax(axis=1).values).astype(numpy.float)
             max_peak_angle.append(angle_with_max_map)
 
-            # Plot histogram
+        # Plot histogram
         peak_angle_histogram(max_peak_angle, params.output.out_dir)
     else:
         logger.info('Histogram of peak angles exists')
 
-    # TODO Seperat into seperat files/ and set up phil file to run with and without these features
+    # TODO Separate into seperate files/ and set up phil file to run with and without these features
 
-   
     ##########################################################################
     # Curve Fitting routine for all datasets
     ##########################################################################  
@@ -432,14 +432,22 @@ def run(params):
     # Heirichal Clustering, Average linakge, for pairwise euclidean
     # distances for each residue
     ###################################################################
+
+    print(euclidean_base_csv)
+    print(pairwise_type)
+    print(ref_set)
+    print(params.output.out_dir)
+    print(datasets)
+    print("______________________________________")
+
     hier_agg_cluster(euclidean_base_csv,
                      pairwise_type,
                      ref_set,
                      params.output.out_dir,
                      params,
-                     fit_type,
-                     subset,
                      datasets=datasets,
+                     fit_type=fit_type,
+                     subset=subset,
                      incons_threshold=3,
                      depth=10)
 
@@ -448,9 +456,9 @@ def run(params):
                      ref_set,
                      params.output.out_dir,
                      params,
-                     fit_type,
-                     subset,
                      datasets=datasets,
+                     fit_type=fit_type,
+                     subset=subset,
                      incons_threshold=4,
                      depth=10)
 
@@ -459,9 +467,9 @@ def run(params):
                      ref_set,
                      params.output.out_dir,
                      params,
-                     fit_type,
-                     subset,
                      datasets=datasets,
+                     fit_type=fit_type,
+                     subset=subset,
                      incons_threshold=3,
                      depth=5)
 
@@ -470,10 +478,10 @@ def run(params):
                      ref_set,
                      params.output.out_dir,
                      params,
-                     fit_type,
-                     subset,
                      incons_threshold=4,
                      datasets=datasets,
+                     fit_type=fit_type,
+                     subset=subset,
                      depth=5)
 
     ##########################################################################
@@ -482,11 +490,19 @@ def run(params):
     clusters_weight_filename = 'Adj_clusters_weight_{}_{}_{}.csv'.format(
                                 pairwise_type, fit_type, subset)
 
-    if not os.path.exists(os.path.join(params.output.out_dir,
-        "Adj_cluster_weight_heatmap_{}_{}_{}.png".format(pairwise_type,fit_type,subset))):
+    if not os.path.exists(os.path.join(
+            params.output.out_dir,
+            "Adj_cluster_weight_heatmap_{}_{}_{}.png".format(
+                pairwise_type,
+                fit_type,
+                subset))):
 
-        cluster_heatmap(os.path.join(params.output.out_dir,clusters_weight_filename),
-                    params.output.out_dir,pairwise_type,fit_type = fit_type, subset = subset)
+        cluster_heatmap(os.path.join(params.output.out_dir,
+                                     clusters_weight_filename),
+                        params.output.out_dir,
+                        pairwise_type,
+                        fit_type = fit_type,
+                        subset = subset)
 
     ##########################################################################
     # Clustering with Amplitudes & Means   
@@ -499,8 +515,14 @@ def run(params):
                                                       datasets=datasets,
                                                       subset=subset)
 
-    hier_agg_cluster(euclidean_base_csv, pairwise_type, ref_set,
-                     params.output.out_dir, params, fit_type, subset)
+    hier_agg_cluster(euclidean_base_csv,
+                     pairwise_type,
+                     ref_set,
+                     params.output.out_dir,
+                     params,
+                     datasets=datasets,
+                     fit_type=fit_type,
+                     subset=subset)
      
     ##########################################################################
     # Generate Heatmaps from clustering: Amplitudes and Means
@@ -559,11 +581,11 @@ def run(params):
     # Generate Scores
     ##########################################################################
     dataset_score = Adj_clusters_weight.sum()
-    residue_score = (Adj_clusters_weight**2).sum(axis = 1)
+    residue_score = (Adj_clusters_weight**2).sum(axis=1)
     dataset_corr_score = Adj_clusters_weight_corr.sum()
     residue_corr_score = (Adj_clusters_weight_corr**2).sum(axis=1)
     dataset_means_score = Adj_clusters_weight_means.sum()
-    residue_means_score = (Adj_clusters_weight_means**2 ).sum(axis =1)
+    residue_means_score = (Adj_clusters_weight_means**2).sum(axis=1)
 
     score_matrix = pandas.DataFrame(index=residue_score.index,
                                     columns=dataset_score.index)
@@ -579,31 +601,36 @@ def run(params):
                                          header=0,
                                          index_col=0)
         
-    ###########################################################################
+    ######################################
     # Reading in subset of bound ligands 
-    ###########################################################################
+    ######################################
     # bound_ligands=pandas.read_csv('bound_ligands.csv')
 
-    ##########################################################################
+    ###############
     # Plotting 
-    ###########################################################################
+    ###############
     plot_correlation_vs_fitting(params.output.out_dir, dataset_corr_score,
                                 dataset_score)
 
-    plot_resloution_vs_dataset_score(params.output.out_dir, dataset_score,
-                                     dataset_means_score, dataset_resolution)
+    # TODO rewrite resolution based code
+    # plot_resloution_vs_dataset_score(params.output.out_dir, dataset_score,
+    #                                  dataset_means_score, dataset_resolution)
 
+    # TODO rewrite boun ligands lsit generation
     # plot_RMSD_vs_dataset_score(params.output.out_dir, all_RMSD,
     #                            dataset_score, bound_ligands)
 
-    plot_RMSD_vs_resolution(params.output.out_dir, all_RMSD,
-                            dataset_resolution)
+    # TODO rewrite resolution based code
+    # plot_RMSD_vs_resolution(params.output.out_dir, all_RMSD,
+    #                         dataset_resolution)
 
     plot_RMSD_vs_residue_score(params.output.out_dir, all_RMSD, residue_score,
                                residue_means_score)
-    ###########################################################################
+
+    # TODO Peak fitting code: Assess, and install peak utils if needed
+    #######################
     # Peak Finding Routine
-    ###########################################################################
+    #######################
     # find_peaks(params.output.out_dir, ref_set,params,
     #            params.settings.map_type, params.settings.angle_type)
 
