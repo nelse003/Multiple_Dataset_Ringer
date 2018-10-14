@@ -6,8 +6,11 @@ import libtbx.phil
 import numpy
 import logging
 from string import ascii_letters
-
+from itertools import izip
 import matplotlib
+
+from iotbx.pdb import hierarchy
+from giant.structure.select import protein
 
 # Ringer Processing with absolute electron density scaling (F000)
 from process_ringer import process_with_ringer
@@ -113,6 +116,58 @@ ch.setFormatter(formatter)
 logger.addHandler(ch)
 
 
+def rename_chain_if_differs(pdb, ref_pdb):
+    """ Rename protein pdb chain to that of reference pdb if different.
+
+    Parameters
+    ----------
+    pdb: str
+        path of pdb that is being compared to reference pdb
+    ref_pdb: str
+        path of reference pdb
+
+    Returns
+    -------
+    pdb: str
+        path to pdb, edited name iof pdb had the same chain
+
+    Notes
+    --------
+    Runs phenix.pdbtools because initial attempt
+    to use hierarchy editing failed.
+
+    Example command is:
+
+    phenix.pdbtools dimple.pdb rename_chain_id.old_id=D \
+    rename_chain_id.new_id=A output.file_name="dimple_edited.pdb"
+
+    https://www.phenix-online.org/documentation/reference/pdbtools.html#manipulations-on-a-model-in-a-pdb-file-including
+
+    """
+
+    edited_pdb = os.path.join(os.path.dirname(pdb), "dimple_edited.pdb")
+    if os.path.exists(edited_pdb):
+        pdb=edited_pdb
+
+    pdb_in = hierarchy.input(file_name=pdb)
+    ref_pdb_in = hierarchy.input(file_name=ref_pdb)
+
+    for chain, ref_chain in izip(
+            protein(pdb_in.hierarchy, copy=False).only_model().chains(),
+            protein(ref_pdb_in.hierarchy, copy=False).only_model().chains()):
+
+        if chain.id != ref_chain.id:
+
+            os.system('phenix.pdbtools dimple.pdb rename_chain_id.old_id={}'
+                      'rename_chain_id.new_id={} '
+                      'output.file_name=dimple_edited.pdb'.format(
+                chain.id, ref_chain.id))
+
+            pdb = edited_pdb
+
+    return pdb
+
+
 def run(params):
 
     """ Run Ringer over multiple datasets.
@@ -155,6 +210,7 @@ def run(params):
                                           columns=['Resolution'])
 
     # Generate ringer results & resolution information
+    ref_pdb = None
     for dataset_dir in params.input.dir:
         # Label the dataset by the directory name
         dataset_label = os.path.basename(dataset_dir.rstrip('/'))
@@ -169,6 +225,11 @@ def run(params):
 
         pdb = pdb[0]
         mtz = mtz[0]
+
+        if ref_pdb is None:
+            ref_pdb = pdb
+
+        pdb = rename_chain_if_differs(pdb, ref_pdb)
 
         if not os.path.exists(pdb):
             print('Skipping dir: No PDB Files found in {} matching {}'.format(
@@ -224,16 +285,6 @@ def run(params):
     # Choose a map_type/angle_type by reducing reference set
     ref_set = ref_set.loc[(ref_set[1] == params.settings.map_type)]
     ref_set = ref_set.loc[(ref_set[2] == params.settings.angle_type)]
-
-    # Initial code for the renaming of dataset residues
-    # i.e VAL A97 != VAL D97
-    # But these are likely just a naming error
-    # Appears only in the case of dimple.pdb files
-    for dataset in all_results.iteritems():
-        if len(dataset[1].index.difference(ref_set.index)) > 0:
-            print(dataset[0])
-            print(dataset[1].index.difference(ref_set.index))
-
 
     # Iterate through the residues
     for residue, data in ref_set.iterrows():
