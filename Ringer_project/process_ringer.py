@@ -2,19 +2,35 @@
 ##########################################################
 #Packages
 
-import os, sys, copy, glob
+import os
+import sys
+import copy
+import glob
 
 # For command manager         
 from bamboo.common.command import CommandManager
+
 # Package for getting summary from crystal (mtz): resolution
 from iotbx.reflection_file_reader import any_reflection_file
 from cctbx import miller
 from giant.jiffies.quick_insert_f000 import run as insert_f000
 from giant.jiffies.quick_insert_f000 import master_phil as f000_phil
 
-def process_with_ringer(pdb, mtz, angle_sampling,resolution_csv_path = None,
-                        output_dir=None,output_base=None):
-    """Analyse a pdb-mtz pair with mmtbx.ringer"""
+
+def process_with_ringer(pdb, mtz, angle_sampling, output_dir=None,
+                        output_base=None):
+
+    """Analyse a pdb-mtz pair with mmtbx.ringer
+
+    Parameters
+    -----------
+
+
+    Returns
+    -----------
+
+
+    """
 
     assert os.path.exists(pdb), 'PDB File does not exist'
     assert os.path.exists(mtz), 'MTZ File does not exist'
@@ -66,17 +82,5 @@ def process_with_ringer(pdb, mtz, angle_sampling,resolution_csv_path = None,
     # Check the output csv file exists
     assert os.path.exists(output_csv), 'Ringer output CSV does not exist: {}'.format(output_csv)
 
-    resolution = 0
-    #Only run if resolution csv does not exist
-
-    # This code is obsifcating and confusing.
-    # Check why we need a resolution check, and replace if necessary
-
-    # if resolution_csv_path is not None:
-    #     if not os.path.exists(resolution_csv_path):
-    #         hkl_in = any_reflection_file(file_name=mtz)
-    #         miller_arrays = hkl_in.as_miller_arrays()
-
-
-    return output_csv, resolution
+    return output_csv
 

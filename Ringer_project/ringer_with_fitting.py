@@ -144,7 +144,7 @@ def rename_chain_if_differs(pdb, ref_pdb):
     https://www.phenix-online.org/documentation/reference/pdbtools.html#manipulations-on-a-model-in-a-pdb-file-including
 
     """
-
+    orig_pdb = pdb
     edited_pdb = os.path.join(os.path.dirname(pdb), "dimple_edited.pdb")
     if os.path.exists(edited_pdb):
         pdb=edited_pdb
@@ -158,10 +158,10 @@ def rename_chain_if_differs(pdb, ref_pdb):
 
         if chain.id != ref_chain.id:
 
-            os.system('phenix.pdbtools dimple.pdb rename_chain_id.old_id={}'
-                      'rename_chain_id.new_id={} '
-                      'output.file_name=dimple_edited.pdb'.format(
-                chain.id, ref_chain.id))
+            os.system('phenix.pdbtools {} rename_chain_id.old_id={}'
+                      ' rename_chain_id.new_id={}'
+                      ' output.file_name={}'.format(
+                orig_pdb, chain.id, ref_chain.id, edited_pdb))
 
             pdb = edited_pdb
 
@@ -242,14 +242,22 @@ def run(params):
             continue
 
         # Process dataset with ringer and convert results to DataFrame
-        ringer_csv, resolution = \
-            process_with_ringer(pdb=pdb,
-                                mtz=mtz,
-                                angle_sampling=params.settings.angle_sampling,
-                                output_dir=dataset_dir,
-                                resolution_csv_path=resolution_csv_path)
+        ringer_csv = process_with_ringer(pdb=pdb,
+                                         mtz=mtz,
+                                         angle_sampling=params.settings.angle_sampling,
+                                         output_dir=dataset_dir)
 
         ringer_results = pandas.DataFrame.from_csv(ringer_csv, header=None)
+
+        # Only run if resolution csv does not exist
+
+        # This code is obsifcating and confusing.
+        # Check why we need a resolution check, and replace if necessary
+
+        # if resolution_csv_path is not None:
+        #     if not os.path.exists(resolution_csv_path):
+        #         hkl_in = any_reflection_file(file_name=mtz)
+        #         miller_arrays = hkl_in.as_miller_arrays()
 
         # Change order of residue name.
         # This is needed for the comparison:
@@ -262,7 +270,7 @@ def run(params):
                 ringer_results.index.values[i] = res_split[0] + ' ' + res_split[1]
 
         all_results[dataset_label] = ringer_results
-        dataset_resolution.loc[dataset_label] = resolution
+        #dataset_resolution.loc[dataset_label] = resolution
 
     datasets = all_results.keys()
 
@@ -308,6 +316,9 @@ def run(params):
 
                 current_dataset_results = dataset_results.loc[(
                     dataset_results.index == residue)]
+
+                if current_dataset_results.empty:
+                    continue
 
                 sorted_angles, \
                 sorted_map_values = normalise_and_sort_ringer_results(
@@ -430,10 +441,6 @@ def run(params):
             interpolated_results = pandas.read_csv(
                 os.path.join(params.output.out_dir, residue, interpolate_csv),
                 index_col=0)
-
-            assert len(interpolated_results) == len(datasets),\
-                ('Input CSV data is length {} for {} datasets.'
-                'Lengths should match'.format(len(interpolated_results), len(datasets)))
 
             angle_with_max_map = (interpolated_results.idxmax(axis=1).values).astype(numpy.float)
             max_peak_angle.append(angle_with_max_map)

@@ -106,10 +106,8 @@ def ringer_all_datasets(dir,params):
     mtz = mtz[0]
 
     # Process dataset with ringer and convert results to DataFrame
-    ringer_csv, resolution = process_with_ringer(pdb=pdb,
-                             mtz=mtz,
-                             angle_sampling=params.settings.angle_sampling,
-                             output_dir=dir) 
+    ringer_csv, resolution = process_with_ringer(pdb=pdb, mtz=mtz, angle_sampling=params.settings.angle_sampling,
+                                                 output_dir=dir)
 
     ringer_results = pandas.DataFrame.from_csv(ringer_csv, header=None)
 

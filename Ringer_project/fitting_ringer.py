@@ -341,10 +341,6 @@ def calculate_euclidean_distance(out_dir, ref_set, params,
             fit_parameters=pandas.read_csv(os.path.join(out_dir,residue,parameters_csv_filename),   
                                   index_col=0, header=0)
 
-            assert (len(fit_parameters) == len(datasets)),(
-                    'Input CSV data is length {} for {} datasets.'
-                    'Lengths should match'.format(len(fit_parameters), len(datasets)))
-
             euclidean_distance=pandas.DataFrame(index=fit_parameters.index, columns=fit_parameters.index)
 
             if subset == 'Amplitudes':
