@@ -309,8 +309,8 @@ def generate_RMSD(out_dir, ref_set, map_type, angle_type, fit_type,
                                                 columns =['RMSD'])
                 RMSD_results = RMSD_results.append(RMSD_result)
 
-
-            all_RMSD.loc[:,residue]= RMSD_results.values
+            if residue in ref_set.index.values.to_list():
+                all_RMSD.loc[:,residue]= RMSD_results.values
 
         # Store RMSD for all residues
         all_RMSD.to_csv(os.path.join(out_dir, RMSD_filename))

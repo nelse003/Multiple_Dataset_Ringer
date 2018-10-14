@@ -66,8 +66,12 @@ input {
         .type = str
         .multiple = False
     mtz_style = "dimple.mtz"
-      .type = str
+        .type = str
         .multiple = False
+    column_labels = "FWT,PHWT"
+        .type = str
+        .multiple = False
+        .help = mtz column labels of input files
 }
 output {
     log = "ringer.log"
@@ -245,7 +249,8 @@ def run(params):
         ringer_csv = process_with_ringer(pdb=pdb,
                                          mtz=mtz,
                                          angle_sampling=params.settings.angle_sampling,
-                                         output_dir=dataset_dir)
+                                         output_dir=dataset_dir,
+                                         column_labels=params.input.column_labels)
 
         ringer_results = pandas.DataFrame.from_csv(ringer_csv, header=None)
 

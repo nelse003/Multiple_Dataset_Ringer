@@ -18,7 +18,7 @@ from giant.jiffies.quick_insert_f000 import master_phil as f000_phil
 
 
 def process_with_ringer(pdb, mtz, angle_sampling, output_dir=None,
-                        output_base=None):
+                        output_base=None, column_labels="FWT,PHWT"):
 
     """Analyse a pdb-mtz pair with mmtbx.ringer
 
@@ -57,7 +57,7 @@ def process_with_ringer(pdb, mtz, angle_sampling, output_dir=None,
             f000_params = f000_phil.extract()
             f000_params.input.pdb = pdb
             f000_params.input.mtz = mtz
-            f000_params.options.column.label = "FWT,PHWT"
+            f000_params.options.column.label = column_labels
 
             print(f000_params)
 
