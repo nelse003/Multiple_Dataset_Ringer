@@ -289,6 +289,12 @@ def run(params):
     # Pull out the "first" ringer results set as a reference
     ref_set = all_results.values()[0]
 
+    print(ref_set)
+    print(ref_set.index)
+    print(ref_set.index.values)
+    print(type(ref_set.index.values))
+    exit()
+
     # Name for storage of interpolated results (without residue)
     interpolate_base_csv = \
         '_{}_Datasets_{}_{}-ringer.csv'.format(len(datasets),
