@@ -309,7 +309,7 @@ def generate_RMSD(out_dir, ref_set, map_type, angle_type, fit_type,
                                                 columns =['RMSD'])
                 RMSD_results = RMSD_results.append(RMSD_result)
 
-            if residue in ref_set.index.values.to_list():
+            if residue in list(ref_set.index.values):
                 all_RMSD.loc[:,residue]= RMSD_results.values
 
         # Store RMSD for all residues
