@@ -293,6 +293,7 @@ def run(params):
     print(ref_set.index)
     print(ref_set.index.values)
     print(type(ref_set.index.values))
+    print(list(ref_set.index.values))
     exit()
 
     # Name for storage of interpolated results (without residue)
