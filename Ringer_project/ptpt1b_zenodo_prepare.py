@@ -1,20 +1,24 @@
 import os
 from itertools import izip
 
-ground_state_model_dir = "/media/nelse003/Data/ringer_test_set/PTP1B/ground_state_models"
-bound_state_model_dir = "/media/nelse003/Data/ringer_test_set/PTP1B/bound_state_models"
-merged_dir = "/media/nelse003/Data/ringer_test_set/PTP1B/merged_models"
+# ground_state_model_dir = "/media/nelse003/Data/ringer_test_set/PTP1B/ground_state_models"
+# bound_state_model_dir = "/media/nelse003/Data/ringer_test_set/PTP1B/bound_state_models"
+# merged_dir = "/media/nelse003/Data/ringer_test_set/PTP1B/merged_models"
 
-input_dir ="/media/nelse003/Data/ringer_test_set/PTP1B/datasets"
+#input_dir ="/media/nelse003/Data/ringer_test_set/PTP1B/datasets"
+input_dir = "/hdlocal/home/enelson/PTP1B/datasets"
 
 if not os.path.exists(input_dir):
     os.mkdir(input_dir)
 
-if not os.path.exists(merged_dir):
-    os.mkdir(merged_dir)
+# if not os.path.exists(merged_dir):
+#     os.mkdir(merged_dir)
 
-input_models_dir = "/media/nelse003/Data/ringer_test_set/PTP1B/pandda_input_models"
-mtz_dir = "/media/nelse003/Data/ringer_test_set/PTP1B/mtzs"
+# input_models_dir = "/media/nelse003/Data/ringer_test_set/PTP1B/pandda_input_models"
+# mtz_dir = "/media/nelse003/Data/ringer_test_set/PTP1B/mtzs"
+
+input_models_dir = "/hdlocal/home/enelson/PTP1B/pandda_input_models"
+mtz_dir = "/hdlocal/home/enelson/PTP1B/mtzs"
 
 pdb_datasets = set(d[0:11] for d in os.listdir(input_models_dir))
 mtz_datasets = set(d[0:11] for d in os.listdir(mtz_dir))
@@ -33,7 +37,7 @@ for dataset in pdb_datasets.intersection(mtz_datasets):
 
 
 
-def merge_ptpt1b(ground_state_model_dir,bound_state_model_dir, merged_dir):
+def merge_ptpt1b(ground_state_model_dir, bound_state_model_dir, merged_dir):
     """ Run giant.merge_datasets on ptp1b models"""
 
     os.chdir(merged_dir)

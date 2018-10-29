@@ -393,6 +393,8 @@ def run(params):
     else:
         logger.info('Average Ringer plots already generated')
 
+    exit()
+
     # Blue line plots
     # average_ringer_plots(base_csv=interpolate_base_csv, ref_set=ref_set,
     #                      out_dir=out_dir, params=params,
