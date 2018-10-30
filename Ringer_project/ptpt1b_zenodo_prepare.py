@@ -6,7 +6,7 @@ from itertools import izip
 # merged_dir = "/media/nelse003/Data/ringer_test_set/PTP1B/merged_models"
 
 #input_dir ="/media/nelse003/Data/ringer_test_set/PTP1B/datasets"
-input_dir = "/hdlocal/home/enelson/PTP1B/datasets"
+input_dir = "/hdlocal/home/enelson/PTP1B/datasets_single_pdb"
 
 if not os.path.exists(input_dir):
     os.mkdir(input_dir)

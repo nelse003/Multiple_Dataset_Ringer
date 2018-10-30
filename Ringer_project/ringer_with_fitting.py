@@ -98,6 +98,10 @@ settings {
     angle_type = 'chi1'
         .type = str
         .help = Chi angle to be analysed across multiple datasets
+        
+    sample_only_ref_pdb = None
+        .type = str
+        .help = Run all ringer analyses against a single pdb structure
     
 }
 """)
@@ -232,6 +236,9 @@ def run(params):
 
         if ref_pdb is None:
             ref_pdb = pdb
+
+        if params.settings.sample_only_ref_pdb is not None:
+            pdb = ref_pdb
 
         pdb = rename_chain_if_differs(pdb, ref_pdb)
 
