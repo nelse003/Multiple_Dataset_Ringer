@@ -1,9 +1,10 @@
 #/usr/bin/env_pandda.python
 
-import pconpy
 import os
+import pconpy
 
-from pdb_to_dist import (expand_dist_mat, print_conformer_matrix) 
+from multiple_dataset_ringer.contact_map.pdb_to_dist import (expand_dist_mat, print_conformer_matrix)
+
 
 def measure_test():
  

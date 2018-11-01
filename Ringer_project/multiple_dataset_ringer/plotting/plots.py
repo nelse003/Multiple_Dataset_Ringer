@@ -20,8 +20,8 @@ from scipy.stats import spearmanr
 import matplotlib
 matplotlib.use('Agg')
 matplotlib.interactive(0)
-from matplotlib import pyplot
-pyplot.style.use('ggplot')
+from matplotlib import pyplot as plt
+plt.style.use('ggplot')
 matplotlib.rcParams['savefig.facecolor'] = 'white'
 matplotlib.rcParams['savefig.dpi'] = 80
 matplotlib.rcParams['axes.facecolor'] = 'white'
@@ -50,9 +50,64 @@ logger.addHandler(ch)
 # Functions
 ##############################################################################
 
+def simple_histogram(filename, data, title, x_lab='x', n_bins=30):
+    """Quick histogram function"""
+
+    fig = plt.figure()
+    plt.title(title)
+    plt.hist(x=finite(data), bins=n_bins)
+    plt.xlabel(x_lab)
+    plt.ylabel('Count')
+    plt.tight_layout()
+    plt.savefig(filename)
+    plt.close(fig)
+
+    return
+
+def simple_bar(filename, y_vals, x_labels, title, x_lab='x', y_lab='y', x_lim=None, y_lim=None):
+    """Quick bar plot function"""
+
+    assert len(y_vals) == len(x_labels)
+
+    # Plot sequential bars
+    x_vals = numpy.arange(len(y_vals))
+
+    fig = plt.figure()
+    plt.title(title)
+    plt.bar(left=x_vals, height=y_vals, width=1)
+    plt.xlabel(x_lab)
+    plt.ylabel(y_lab)
+    plt.xticks(x_vals+0.5, x_labels)
+    plt.xlim(x_lim)
+    plt.ylim(y_lim)
+    plt.tight_layout()
+    plt.savefig(filename)
+    plt.close(fig)
+
+    return
+
+def simple_scatter(filename, x_vals, y_vals, title, x_lab='x', y_lab='y', x_lim=None, y_lim=None):
+    """Quick scatter plot function"""
+
+    assert len(x_vals) == len(y_vals)
+
+    fig = plt.figure()
+    plt.title(title)
+    plt.scatter(x=x_vals, y=y_vals)
+    plt.xlabel(x_lab)
+    plt.ylabel(y_lab)
+    plt.xlim(x_lim)
+    plt.ylim(y_lim)
+    plt.tight_layout()
+    plt.savefig(filename)
+    plt.close(fig)
+
+    return
+
+
 # Set some parameters for plots: Only left and top axes
 def myfig(**kwargs):
-    fig = pyplot.figure(**kwargs)
+    fig = plt.figure(**kwargs)
     ax = fig.gca()
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
@@ -71,40 +126,40 @@ def myfig(**kwargs):
 def line_plot_ringer(sorted_angles,sorted_map_values,title,filename,out_dir):
     """Plot single ringer graph """
     fig = myfig()
-    pyplot.plot(sorted_angles, sorted_map_values)
-    pyplot.title(title)
-    pyplot.xlabel('Angle')
-    pyplot.tight_layout()
-    pyplot.savefig(os.path.join(out_dir,filename))
-    pyplot.close(fig)
+    plt.plot(sorted_angles, sorted_map_values)
+    plt.title(title)
+    plt.xlabel('Angle')
+    plt.tight_layout()
+    plt.savefig(os.path.join(out_dir,filename))
+    plt.close(fig)
 
 def multiple_line_plot_ringer(all_data_list,title, filename, out_dir):
     """Plot multiple ringer plots  """
     fig = myfig()
-    pyplot.title(title)
+    plt.title(title)
 
     for i in range(0,len(all_data_list)):
         sorted_angles=all_data_list[i][0]
         sorted_map_values=all_data_list[i][1]
-        pyplot.plot(sorted_angles, sorted_map_values)
+        plt.plot(sorted_angles, sorted_map_values)
 
         if len(all_data_list) < 10:
-            pyplot.legend()
+            plt.legend()
 
-    pyplot.xlabel('Angle')
-    pyplot.tight_layout()
-    pyplot.savefig(os.path.join(out_dir,filename))
-    pyplot.close()
+    plt.xlabel('Angle')
+    plt.tight_layout()
+    plt.savefig(os.path.join(out_dir,filename))
+    plt.close()
 
 def multiple_line_plot_bold(bold_angles, bold_map_values,all_data_list, title,
                             filename, out_dir, average_type, 
                             bold_blue_map_values = None, bold_blue_map = None):
     """ Plot multiple ringer plots, with a bold plot ontop"""
     fig = myfig(figsize=(10,8))
-    pyplot.title(title, fontsize = 24)
-    pyplot.xlabel('Angle',fontsize = 20)
-    pyplot.ylabel('Map Value', fontsize = 20)
-    pyplot.xlim(0,360)
+    plt.title(title, fontsize = 24)
+    plt.xlabel('Angle',fontsize = 20)
+    plt.ylabel('Map Value', fontsize = 20)
+    plt.xlim(0,360)
 
     # Legend
     black_line = mlines.Line2D([],[], color ='k', ls ='--',
@@ -113,27 +168,27 @@ def multiple_line_plot_bold(bold_angles, bold_map_values,all_data_list, title,
     if bold_blue_map_values is not None:
         blue_line =mlines.Line2D([],[], color ='b',ls = '-.', 
                                  label = '{} Ringer plot'.format(bold_blue_map))
-        legend = pyplot.legend(handles =[black_line,grey_line,blue_line], 
+        legend = plt.legend(handles =[black_line,grey_line,blue_line], 
                                loc = 'best', fontsize =20)
     else:
-        legend = pyplot.legend(handles =[black_line,grey_line], 
+        legend = plt.legend(handles =[black_line,grey_line], 
                                loc= 'best', fontsize = 20)
     legend.get_frame().set_facecolor('w')
      # Background Plots     
     for i in range(0,len(all_data_list)):
         sorted_angles=all_data_list[i][0]
         sorted_map_values=all_data_list[i][1]
-        pyplot.plot(sorted_angles,sorted_map_values, color= 'k', alpha = 0.05)
+        plt.plot(sorted_angles,sorted_map_values, color= 'k', alpha = 0.05)
     # Foreground Plot   
-    pyplot.plot(bold_angles, bold_map_values, color = 'k', linewidth = 2, ls ='--')
+    plt.plot(bold_angles, bold_map_values, color = 'k', linewidth = 2, ls ='--')
     if bold_blue_map_values is not None:
-        pyplot.plot(sorted_angles, bold_blue_map_values, color = 'b', 
+        plt.plot(sorted_angles, bold_blue_map_values, color = 'b', 
                     linewidth = 2, ls = '-.')
 
-    #pyplot.gca().patch.set_facecolor('0.95')
-    pyplot.tight_layout()
-    pyplot.savefig(os.path.join(out_dir,filename), dpi = 300, format = 'png')
-    pyplot.close()
+    #plt.gca().patch.set_facecolor('0.95')
+    plt.tight_layout()
+    plt.savefig(os.path.join(out_dir,filename), dpi = 300, format = 'png')
+    plt.close()
 
 
 def average_ringer_plots(base_csv,ref_set,out_dir,params,average_type= 'Mean',
@@ -204,8 +259,8 @@ def augmented_dendrogram(*args, **kwargs):
         for i, d in zip(ddata['icoord'], ddata['dcoord']):
             x = 0.5 * sum(i[1:3])
             y = d[1]
-            pyplot.plot(x, y, 'ro')
-            pyplot.annotate("%.3g" % y, (x, y), xytext=(0, -8),
+            plt.plot(x, y, 'ro')
+            plt.annotate("%.3g" % y, (x, y), xytext=(0, -8),
                          textcoords='offset points',
                          va='top', ha='center')
     return ddata
@@ -213,43 +268,44 @@ def augmented_dendrogram(*args, **kwargs):
 
 def plot_dendrogram(linkage_matrix, out_dir, residue, pairwise_type,
                     plot_filename, dataset_labels):
+
     # Plotting dendorgram
     fig = myfig(figsize=(10,10))
-    pyplot.clf()
+    plt.clf()
     ddata = augmented_dendrogram(linkage_matrix,color_threshold=1,p=15,
                                 truncate_mode='lastp',labels=dataset_labels)
-    pyplot.gcf().subplots_adjust(bottom=0.25)
-    pyplot.xticks(rotation=90)
-    pyplot.title("{} {} Dendrogram".format(residue, pairwise_type))
-    pyplot.ylabel("Cophenetic distance")
-    pyplot.savefig(os.path.join(out_dir, residue, plot_filename))
-    pyplot.close()
+    plt.gcf().subplots_adjust(bottom=0.25)
+    plt.xticks(rotation=90)
+    plt.title("{} {} Dendrogram".format(residue, pairwise_type))
+    plt.ylabel("Cophenetic distance")
+    plt.savefig(os.path.join(out_dir, residue, plot_filename))
+    plt.close()
 
 def plot_correlation_vs_fitting(out_dir, dataset_corr_score, dataset_score):
 
     fig = myfig() 
-    fig, ax = pyplot.subplots(1)
+    fig, ax = plt.subplots(1)
 
     print(len(dataset_corr_score))
     print(len(dataset_score))
 
     ax.scatter(dataset_corr_score, dataset_score)
-    pyplot.xlabel('Dataset score: correlation')
-    pyplot.ylabel('Dataset score: Amplitude only fit')
+    plt.xlabel('Dataset score: correlation')
+    plt.ylabel('Dataset score: Amplitude only fit')
     ax.set_xlim(left =0)
     ax.set_ylim(bottom =0)
     spearman_dataset, p_val = spearmanr(dataset_corr_score,dataset_score)
-    pyplot.title('Spearman corr = {}'.format(spearman_dataset))
-    pyplot.savefig(os.path.join(out_dir,
+    plt.title('Spearman corr = {}'.format(spearman_dataset))
+    plt.savefig(os.path.join(out_dir,
                    'dataset_score_correlation_fitting_vs_correlation.png'))
-    pyplot.close()
+    plt.close()
 
 def plot_resloution_vs_dataset_score(out_dir,
                                      dataset_score,
                                      dataset_means_score,
                                      dataset_resolution):
 
-    fig, (ax1,ax2) = pyplot.subplots(2, sharex=True, sharey = True)
+    fig, (ax1,ax2) = plt.subplots(2, sharex=True, sharey = True)
 
     ax1.scatter(dataset_resolution ,dataset_score, label='Amplitude Fit')
     ax2.scatter(dataset_resolution, dataset_means_score,
@@ -257,15 +313,15 @@ def plot_resloution_vs_dataset_score(out_dir,
     ax1.set_ylim(bottom = 0)
     ax1.set_title('Amplitude fit')
     ax2.set_title('Amplitude & Means fit')
-    pyplot.xlabel('Resolution')
+    plt.xlabel('Resolution')
     fig.text(0.04,
              0.5,
              'Dataset score',
              va='center',
              rotation='vertical')
 
-    pyplot.savefig(os.path.join(out_dir, 'Resolution_dataset_score.png'))
-    pyplot.close()
+    plt.savefig(os.path.join(out_dir, 'Resolution_dataset_score.png'))
+    plt.close()
 
 def plot_RMSD_vs_dataset_score(out_dir,all_RMSD,dataset_score,bound_ligands):
     
@@ -281,19 +337,19 @@ def plot_RMSD_vs_dataset_score(out_dir,all_RMSD,dataset_score,bound_ligands):
     ax1.set_xlabel('Sum of RMSD across residues for each dataset')
     ax1.set_ylabel('Dataset Score')
     ax1.legend(loc = 'best')
-    pyplot.savefig(os.path.join(out_dir,'RMSD_vs_Dataset_score.png'), dpi = 300)
-    pyplot.close()
+    plt.savefig(os.path.join(out_dir,'RMSD_vs_Dataset_score.png'), dpi = 300)
+    plt.close()
 
 def plot_RMSD_vs_resolution(out_dir,all_RMSD,dataset_resolution):
     
-    pyplot.scatter(dataset_resolution,all_RMSD.sum(axis = 1))
-    pyplot.xlabel('Resolution')
-    pyplot.ylabel('Sum of RMSD over all residues for each dataset')
-    pyplot.savefig(os.path.join(out_dir,'Resolution_RMSD.png'))
-    pyplot.close()
+    plt.scatter(dataset_resolution,all_RMSD.sum(axis = 1))
+    plt.xlabel('Resolution')
+    plt.ylabel('Sum of RMSD over all residues for each dataset')
+    plt.savefig(os.path.join(out_dir,'Resolution_RMSD.png'))
+    plt.close()
 
 def plot_RMSD_vs_residue_score(out_dir,all_RMSD,residue_score,residue_means_score):
-    fig, (ax1,ax2) = pyplot.subplots(2, sharex=True,sharey=True,
+    fig, (ax1,ax2) = plt.subplots(2, sharex=True,sharey=True,
                                          figsize=(10,20))
     ax1.scatter(all_RMSD.sum(axis = 0),residue_score,
                    label = 'Amplitude Fit')
@@ -305,11 +361,11 @@ def plot_RMSD_vs_residue_score(out_dir,all_RMSD,residue_score,residue_means_scor
     ax2.set_title('Amplitude & Means fit')
     ax2.set_ylim(bottom = 0)
     ax2.set_xlim(left = 0)
-    pyplot.xlabel('Sum of RMSD over datasets for each residue')
+    plt.xlabel('Sum of RMSD over datasets for each residue')
     ax1.set_ylabel('Residue score')
     ax2.set_ylabel('Residue score')
-    pyplot.savefig(os.path.join(out_dir,'RMSD_vs_residue_score.png'))
-    pyplot.close()
+    plt.savefig(os.path.join(out_dir,'RMSD_vs_residue_score.png'))
+    plt.close()
 
 def RMSD_histogram(all_RMSD,out_dir,RMSD_filename,fit_type):
     
@@ -324,7 +380,7 @@ def RMSD_histogram(all_RMSD,out_dir,RMSD_filename,fit_type):
         fig, ax =  myfig()
 
         bins = numpy.arange(0,1.05,0.05)
-        counts, bins, patches = pyplot.hist(numpy.clip(numpy.concatenate(
+        counts, bins, patches = plt.hist(numpy.clip(numpy.concatenate(
                                             all_RMSD.values),bins[0],bins[-1]),
                                             bins=bins)
         # set xtick labels, to align with values clipped at 1.0
@@ -332,38 +388,38 @@ def RMSD_histogram(all_RMSD,out_dir,RMSD_filename,fit_type):
         xticks[-1] = '>1.0'
 
         num_ticks=len(xticks)
-        pyplot.xlim([0,1.05])
-        pyplot.xticks(0.05*numpy.arange(num_ticks)+0.025)
+        plt.xlim([0,1.05])
+        plt.xticks(0.05*numpy.arange(num_ticks)+0.025)
         ax.set_xticklabels(xticks)
 
-        pyplot.xlabel('RMSD {}  vs ringer data'.format(fit_type))
-        pyplot.ylabel('Frequency')
-        pyplot.savefig(os.path.join(out_dir,RMSD_hist_filename))
-        pyplot.close()
+        plt.xlabel('RMSD {}  vs ringer data'.format(fit_type))
+        plt.ylabel('Frequency')
+        plt.savefig(os.path.join(out_dir,RMSD_hist_filename))
+        plt.close()
     else:
         logger.info('RMSD already generated for fit type: {}'.format(fit_type))
 
 def peak_angle_histogram(max_peak_angle,out_dir):
     
         fig, ax = myfig()
-        counts, bins, patches = pyplot.hist(numpy.concatenate(
+        counts, bins, patches = plt.hist(numpy.concatenate(
                                             max_peak_angle,axis=0),
                                             bins=60, normed=True)
         ax.set_xlim([0,360])
         ax.set_label('Angle')
         ax.set_ylabel('Relative Frequency')
-        pyplot.title('Angles with maximal map value')
-        pyplot.savefig(os.path.join(out_dir,"Modal_peak_location"))
-        pyplot.close(fig)
+        plt.title('Angles with maximal map value')
+        plt.savefig(os.path.join(out_dir,"Modal_peak_location"))
+        plt.close(fig)
 
 def number_clusters_histogram(num_cluster_all,cluster_number_hist,out_dir):
     
-    fig,ax=pyplot.subplots()
+    fig,ax=plt.subplots()
 
-    n, bins, patches= pyplot.hist(num_cluster_all)
+    n, bins, patches= plt.hist(num_cluster_all)
 
-    pyplot.xlabel('Number of clusters')
-    pyplot.ylabel('Number of residues')
+    plt.xlabel('Number of clusters')
+    plt.ylabel('Number of residues')
     
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
@@ -371,8 +427,8 @@ def number_clusters_histogram(num_cluster_all,cluster_number_hist,out_dir):
     ax.yaxis.set_ticks_position('left')
     ax.grid(False)
     
-    pyplot.savefig(os.path.join(out_dir,cluster_number_hist))
-    pyplot.close()
+    plt.savefig(os.path.join(out_dir,cluster_number_hist))
+    plt.close()
 
 def plot_fit(interpolated_angles,interpolated_row,y_fit,angle_type,map_type,
              residue,out_dir,dataset,fit_type):
@@ -382,9 +438,9 @@ def plot_fit(interpolated_angles,interpolated_row,y_fit,angle_type,map_type,
     ax.scatter(interpolated_angles,interpolated_row)
     ax.plot(interpolated_angles, y_fit, label= '3 gaussian fit')
     ax.set_xlim([0,360])
-    pyplot.xlabel('Angle:{}'.format(angle_type))
-    pyplot.ylabel('Map Value:{}'.format(map_type))
-    pyplot.title('{} from {}'.format(residue,dataset))
+    plt.xlabel('Angle:{}'.format(angle_type))
+    plt.ylabel('Map Value:{}'.format(map_type))
+    plt.title('{} from {}'.format(residue,dataset))
     ax.legend(loc = 'upper right')
 
     #output image filename        
@@ -392,7 +448,7 @@ def plot_fit(interpolated_angles,interpolated_row,y_fit,angle_type,map_type,
                                                           fit_type)
     # output directory
     fig.savefig(os.path.join(out_dir,residue,filename))
-    pyplot.close()
+    plt.close()
 
 def pairwise_heatmap(pairwise_csv, residue, out_dir,pairwise_type,
                      params, plot_filename,fit_type='', subset='',
@@ -409,7 +465,7 @@ def pairwise_heatmap(pairwise_csv, residue, out_dir,pairwise_type,
 
     # Make figure & plot: scale minimum & maximum to minimum across all datasets
     
-    fig, ax = pyplot.subplots()
+    fig, ax = plt.subplots()
     heatmap= ax.pcolor(data.values,cmap='RdBu',vmin = min_scale,vmax = max_scale)
 
     # Set title font size
@@ -418,10 +474,10 @@ def pairwise_heatmap(pairwise_csv, residue, out_dir,pairwise_type,
         title_font_size =15
 
     # Scale title fontsize to numbe of datasets
-    pyplot.title('{}'.format(residue),fontsize=title_font_size)
+    plt.title('{}'.format(residue),fontsize=title_font_size)
 
     # Format
-    fig = pyplot.gcf()
+    fig = plt.gcf()
     # Scale image size to dataset (with a minimum size)
     image_size = 0.1*int(len(params.input.dir))
     if image_size < 12:
@@ -443,7 +499,7 @@ def pairwise_heatmap(pairwise_csv, residue, out_dir,pairwise_type,
     row_labels=dataset_labels
 
     # Rotate x ticks
-    pyplot.xticks(rotation=90)
+    plt.xticks(rotation=90)
 
     #set axis font size
     axis_font_size = 0.1*len(params.input.dir)
@@ -456,8 +512,8 @@ def pairwise_heatmap(pairwise_csv, residue, out_dir,pairwise_type,
     cbar.set_label('Pairwise_{}'.format(pairwise_type),rotation=270,fontsize = axis_font_size, labelpad = 40)
     #Output file
     filename = "{}_{}_{}_{}_heatmap.png".format(residue,pairwise_type,fit_type,subset)
-    pyplot.savefig(os.path.join(out_dir,residue,filename))
-    pyplot.close(fig)
+    plt.savefig(os.path.join(out_dir,residue,filename))
+    plt.close(fig)
 
 
 def cluster_heatmap(input_csv, out_dir, pairwise_type, fit_type, subset):
@@ -470,7 +526,7 @@ def cluster_heatmap(input_csv, out_dir, pairwise_type, fit_type, subset):
     residue_labels = data.index.values
 
     # Make figure & plot: scale minimum & maximum to minimum across all datasets
-    fig, ax = pyplot.subplots()
+    fig, ax = plt.subplots()
     heatmap= ax.pcolormesh(data.values,cmap='binary',vmin = 0,vmax = 1)
 
     # Set title font size
@@ -479,12 +535,12 @@ def cluster_heatmap(input_csv, out_dir, pairwise_type, fit_type, subset):
         title_font_size =15
 
     # Scale title fontsize to numbe of datasets
-    pyplot.title('Cluster weights',fontsize=title_font_size)
-    pyplot.xlabel('Datasets',fontsize=title_font_size)
-    pyplot.ylabel('Residues', fontsize=title_font_size)
+    plt.title('Cluster weights',fontsize=title_font_size)
+    plt.xlabel('Datasets',fontsize=title_font_size)
+    plt.ylabel('Residues', fontsize=title_font_size)
 
     # Format
-    fig = pyplot.gcf()
+    fig = plt.gcf()
     # Scale image width to dataset (with a minimum size)
     image_width = 0.1*int(len(data.columns.values))
     if image_width < 12:
@@ -513,7 +569,7 @@ def cluster_heatmap(input_csv, out_dir, pairwise_type, fit_type, subset):
     row_labels=residue_labels
 
     # Rotate x ticks
-    pyplot.xticks(rotation=90)
+    plt.xticks(rotation=90)
 
     #set axis font size
     axis_font_size = 0.1*len(data.columns.values)
@@ -527,5 +583,5 @@ def cluster_heatmap(input_csv, out_dir, pairwise_type, fit_type, subset):
     # Output file
     filename = "Adj_cluster_weight_heatmap_{}_{}_{}.png".format(pairwise_type,fit_type,subset)
 
-    pyplot.savefig(os.path.join(out_dir,filename))
-    pyplot.close(fig)
+    plt.savefig(os.path.join(out_dir,filename))
+    plt.close(fig)

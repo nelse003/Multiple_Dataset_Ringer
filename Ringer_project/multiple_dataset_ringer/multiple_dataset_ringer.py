@@ -1,46 +1,41 @@
-import os
-import sys
 import glob
-import pandas
 import libtbx.phil
-import numpy
 import logging
-from string import ascii_letters
-from itertools import izip
 import matplotlib
-
-from iotbx.pdb import hierarchy
+import numpy
+import os
+import pandas
+import sys
 from giant.structure.select import protein
-
-# Ringer Processing with absolute electron density scaling (F000)
-from process_ringer import process_with_ringer
-
-# Sorting & Interpolating angles from ringer output
-from interpolate_ringer import linear_interpolate_ringer_results
-from interpolate_ringer import normalise_and_sort_ringer_results
-
-# Plotting functions
-from plotting_ringer import line_plot_ringer
-from plotting_ringer import multiple_line_plot_ringer
-from plotting_ringer import average_ringer_plots
-from plotting_ringer import plot_correlation_vs_fitting
-from plotting_ringer import plot_resloution_vs_dataset_score
-from plotting_ringer import plot_RMSD_vs_dataset_score
-from plotting_ringer import plot_RMSD_vs_resolution
-from plotting_ringer import plot_RMSD_vs_residue_score
-from plotting_ringer import peak_angle_histogram
-from plotting_ringer import cluster_heatmap
-from plotting_ringer import pairwise_heatmap
-
-# Hierarichal clustering functions
-from hier_cluster_ringer import (hier_agg_cluster, find_pairwise_range)
-
-# Fitting functions
-from fitting_ringer import (fit_all_datasets, generate_RMSD,
-                           calculate_euclidean_distance)
+from iotbx.pdb import hierarchy
+from itertools import izip
+from string import ascii_letters
 
 # Correlation functions
-from correlation_ringer import correlation_single_residue
+from correlation import correlation_single_residue
+from fitting import calculate_euclidean_distance
+# Fitting functions
+from fitting import fit_all_datasets
+from fitting import generate_RMSD
+# Hierarichal clustering functions
+from multiple_dataset_ringer.cluster.hier import (hier_agg_cluster, find_pairwise_range)
+from multiple_dataset_ringer.plotting.plots import average_ringer_plots
+from multiple_dataset_ringer.plotting.plots import cluster_heatmap
+# Plotting functions
+from multiple_dataset_ringer.plotting.plots import line_plot_ringer
+from multiple_dataset_ringer.plotting.plots import multiple_line_plot_ringer
+from multiple_dataset_ringer.plotting.plots import pairwise_heatmap
+from multiple_dataset_ringer.plotting.plots import peak_angle_histogram
+from multiple_dataset_ringer.plotting.plots import plot_RMSD_vs_dataset_score
+from multiple_dataset_ringer.plotting.plots import plot_RMSD_vs_residue_score
+from multiple_dataset_ringer.plotting.plots import plot_RMSD_vs_resolution
+from multiple_dataset_ringer.plotting.plots import plot_correlation_vs_fitting
+from multiple_dataset_ringer.plotting.plots import plot_resloution_vs_dataset_score
+# Sorting & Interpolating angles from ringer output
+from multiple_dataset_ringer.process.interpolate import linear_interpolate_ringer_results
+from multiple_dataset_ringer.process.interpolate import normalise_and_sort_ringer_results
+# Ringer Processing with absolute electron density scaling (F000)
+from process import process_with_ringer
 
 matplotlib.use('Agg')
 matplotlib.interactive(0)
@@ -193,7 +188,7 @@ def run(params):
     ------------------
     Command Line
     
-    ccp4-python ringer_with_fitting.py \
+    ccp4-python multiple_dataset_ringer.py \
     /hdlocal/home/enelson/DCP2B_ringer_test/*/ \
     input.pdb_style="refine.pdb" \
     input.mtz_style="refine.mtz" \
@@ -219,6 +214,7 @@ def run(params):
 
     # Generate ringer results & resolution information
     ref_pdb = None
+
     for dataset_dir in params.input.dir:
         # Label the dataset by the directory name
         dataset_label = os.path.basename(dataset_dir.rstrip('/'))
@@ -259,7 +255,6 @@ def run(params):
                                          output_dir=dataset_dir,
                                          column_labels=params.input.column_labels)
 
-
         ringer_results = pandas.DataFrame.from_csv(ringer_csv, header=None)
 
         # Only run if resolution csv does not exist
@@ -284,7 +279,7 @@ def run(params):
 
         all_results[dataset_label] = ringer_results
         print(dataset_label)
-        #dataset_resolution.loc[dataset_label] = resolution
+        # dataset_resolution.loc[dataset_label] = resolution
 
     datasets = all_results.keys()
 
@@ -333,8 +328,8 @@ def run(params):
                 if current_dataset_results.empty:
                     continue
 
-                sorted_angles, \
-                sorted_map_values = normalise_and_sort_ringer_results(
+                sorted_angles, sorted_map_values = \
+                    normalise_and_sort_ringer_results(
                     current_dataset_results, params=params)
 
                 interpolated_angles, \
@@ -348,10 +343,9 @@ def run(params):
 
                 # If it doesn't exist: Create dataframe to store results from
                 # one residue, across multiple datasets
-                if not 'single_residue_multiple_datasets' in locals():
+                if'single_residue_multiple_datasets' not in locals():
                     single_residue_multiple_datasets = pandas.DataFrame(
-                        columns=
-                        interpolated_angles)
+                        columns=interpolated_angles)
 
                 # Populate dataframe with results from one residue,
                 # across multiple datasets
@@ -702,7 +696,7 @@ def run(params):
     plot_RMSD_vs_residue_score(params.output.out_dir, all_RMSD, residue_score,
                                residue_means_score)
 
-    # TODO Peak fitting code: Assess, and install peak utils if needed
+    # TODO Peak fitting code: Assess, and install peak extra if needed
     #######################
     # Peak Finding Routine
     #######################

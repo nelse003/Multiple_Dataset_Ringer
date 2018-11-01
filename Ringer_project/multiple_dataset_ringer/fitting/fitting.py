@@ -1,24 +1,23 @@
 #!/usr/bin/env pandda.python
 
+import copy
+import glob
+import logging
+import numpy
 #######################################################################
 # Packages
 #######################################################################
 import os
-import sys
-import copy
-import glob
 import pandas
-import numpy
+import sys
 import time
-import logging
-
-from scipy.spatial.distance import euclidean
 from scipy.optimize import curve_fit
+from scipy.spatial.distance import euclidean
 from sklearn.metrics import mean_squared_error
 
 # Plotting functions import
-from plotting_ringer import RMSD_histogram
-from plotting_ringer import plot_fit
+from multiple_dataset_ringer.plotting.plots import RMSD_histogram
+from multiple_dataset_ringer.plotting.plots import plot_fit
 
 #######################################################################
 # Logging

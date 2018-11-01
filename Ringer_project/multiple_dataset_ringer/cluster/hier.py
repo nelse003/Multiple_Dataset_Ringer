@@ -1,14 +1,16 @@
-import os, sys, copy, glob
-
-import pandas,numpy,time
-
+import copy
+import glob
+import logging
+import numpy
+import os
+import pandas
+import sys
+import time
 # Hierarchy
 from scipy.cluster.hierarchy import linkage, fcluster
 
-import logging
-
 # Imported functions
-from plotting_ringer import plot_dendrogram, number_clusters_histogram
+from multiple_dataset_ringer.plotting.plots import plot_dendrogram, number_clusters_histogram
 
 ###############################################################
 logger = logging.getLogger(__name__)

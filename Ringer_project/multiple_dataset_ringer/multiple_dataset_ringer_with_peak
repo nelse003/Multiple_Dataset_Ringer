@@ -3,12 +3,16 @@
 ###############################################################################
 # Packages
 ##############################################################################
-import os, sys, copy, glob
-import pandas
+import copy
+import glob
 import libtbx.phil
-import numpy
 #################################
 import matplotlib
+import numpy
+import os
+import pandas
+import sys
+
 matplotlib.use('Agg')
 matplotlib.interactive(0)
 from matplotlib import pyplot
@@ -22,17 +26,17 @@ import multiprocessing as mp
 ##########################################################
 
 # Ringer Processing with absolute electron density scaling (F000)
-from process_ringer import process_with_ringer
+from process import process_with_ringer
 # Sorting & Interpolating angles from ringer output
-from interpolate_ringer import (linear_interpolate_ringer_results,
-                               normalise_and_sort_ringer_results)
+from multiple_dataset_ringer.process.interpolate import (linear_interpolate_ringer_results,
+                                                         normalise_and_sort_ringer_results)
 # Peak finding
-from peak_count import (find_peaks, find_peakutils)
-from peak_to_array import peak_to_array
+from multiple_dataset_ringer.peaks.peak_count import (find_peaks, find_peakutils)
+from multiple_dataset_ringer.peaks.peak_to_array import peak_to_array
 
 # Alternate Conformer Spatial Map
-from pdb_to_dist import (spatial_conformer_matrix, print_conformer_matrix,
-                         print_all_alt_conformer)
+from multiple_dataset_ringer.contact_map.pdb_to_dist import (spatial_conformer_matrix, print_conformer_matrix,
+                                                             print_all_alt_conformer)
 
 ###############################################################################
 # Set up for passing arguments

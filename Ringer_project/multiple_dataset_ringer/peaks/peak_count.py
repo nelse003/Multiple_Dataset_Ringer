@@ -1,21 +1,23 @@
 #!/usr/bin/env pandda.python
 
-import os,sys,copy,glob
-import pandas
-import peakutils
-import numpy as np
-
-import sys
-from numpy import NaN, Inf, arange, isscalar, asarray, array
-
-from detect_peaks import detect_peaks
-from scipy.signal import find_peaks_cwt
-from peakdetect import peakdetect
-
+import copy
+import glob
 ###############################################################################
 # Logging
 ###############################################################################
 import logging
+import numpy as np
+import os
+import pandas
+import peakutils
+import sys
+import sys
+from numpy import NaN, Inf, arange, isscalar, asarray, array
+from scipy.signal import find_peaks_cwt
+
+from peakdetect import peakdetect
+from extra.detect_peaks import detect_peaks
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
