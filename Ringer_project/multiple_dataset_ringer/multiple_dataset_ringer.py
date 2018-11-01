@@ -369,38 +369,11 @@ def run(params):
                      incons_threshold=3,
                      depth=10)
 
-    hier_agg_cluster(euclidean_base_csv,
-                     pairwise_type,
-                     ref_set,
-                     params.output.out_dir,
-                     params,
-                     datasets=datasets,
-                     fit_type=fit_type,
-                     subset=subset,
-                     incons_threshold=4,
-                     depth=10)
+    # Note was also previously tested with
+    # incons_threshold=4, depth=10
+    # incons_threshold=3, depth=5
+    # incons_threshold=5, depth=5
 
-    hier_agg_cluster(euclidean_base_csv,
-                     pairwise_type,
-                     ref_set,
-                     params.output.out_dir,
-                     params,
-                     datasets=datasets,
-                     fit_type=fit_type,
-                     subset=subset,
-                     incons_threshold=3,
-                     depth=5)
-
-    hier_agg_cluster(euclidean_base_csv,
-                     pairwise_type,
-                     ref_set,
-                     params.output.out_dir,
-                     params,
-                     incons_threshold=4,
-                     datasets=datasets,
-                     fit_type=fit_type,
-                     subset=subset,
-                     depth=5)
 
     ##########################################################################
     # Generate Heatmaps from clustering: Amplitudes

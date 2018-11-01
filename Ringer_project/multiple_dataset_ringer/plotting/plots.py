@@ -1,14 +1,8 @@
-#!/usr/bin/env pandda.python
-
-###############################################################################
-# Packages
-##############################################################################
 # System tasks
-import os, sys, copy, glob
-# Numpy
+import os
 import numpy
-# Pandas Dataframes
-import pandas
+import pandas as pd
+
 # Dendrogram
 from scipy.cluster.hierarchy import dendrogram
 # Spearman rank coefficent for plot label
@@ -33,11 +27,6 @@ import matplotlib.lines as mlines
 import logging
 logger = logging.getLogger(__name__)
 
-
-###############################################################################
-# Functions
-##############################################################################
-
 def simple_histogram(filename, data, title, x_lab='x', n_bins=30):
     """Quick histogram function"""
 
@@ -58,7 +47,7 @@ def simple_bar(filename, y_vals, x_labels, title, x_lab='x', y_lab='y', x_lim=No
     assert len(y_vals) == len(x_labels)
 
     # Plot sequential bars
-    x_vals = numpy.arange(len(y_vals))
+    x_vals = np.arange(len(y_vals))
 
     fig = plt.figure()
     plt.title(title)
@@ -111,7 +100,11 @@ def myfig(**kwargs):
             color='0.9')
     return fig, ax
 
-def line_plot_ringer(sorted_angles,sorted_map_values,title,filename,out_dir):
+def line_plot_ringer(sorted_angles,
+                     sorted_map_values,
+                     title,
+                     filename,
+                     out_dir):
     """Plot single ringer graph """
     fig = myfig()
     plt.plot(sorted_angles, sorted_map_values)
@@ -176,14 +169,20 @@ def multiple_line_plot_bold(bold_angles, bold_map_values,all_data_list, title,
     plt.close()
 
 
-def average_ringer_plots(base_csv,ref_set,out_dir,params,average_type= 'Mean',
+def average_ringer_plots(base_csv,
+                         ref_set,
+                         out_dir,
+                         params,
+                         average_type= 'Mean',
                          bold_blue_map = None):
+
     """Calculate average ringer plot for each residue across all datasets"""
-    all_average_results = pandas.DataFrame() #index = ref_set.index.values
+
+    all_average_results = pd.DataFrame() #index = ref_set.index.values
 
     for residue, data in ref_set.iterrows():
         interpolate_csv = residue + base_csv
-        results = pandas.read_csv(os.path.join(out_dir,residue,interpolate_csv),
+        results = pd.read_csv(os.path.join(out_dir,residue,interpolate_csv),
                                   header = 0, index_col = 0)
         if average_type == 'Mean':
             average_results = results.mean(axis = 0)
@@ -251,8 +250,12 @@ def augmented_dendrogram(*args, **kwargs):
     return ddata
 
 
-def plot_dendrogram(linkage_matrix, out_dir, residue, pairwise_type,
-                    plot_filename, dataset_labels):
+def plot_dendrogram(linkage_matrix,
+                    out_dir,
+                    residue,
+                    pairwise_type,
+                    plot_filename,
+                    dataset_labels):
 
     # Plotting dendorgram
     fig = myfig(figsize=(10,10))
@@ -357,15 +360,15 @@ def RMSD_histogram(all_RMSD,out_dir,RMSD_filename,fit_type):
     RMSD_hist_filename = "RMSD_hist_{}.png".format(fit_type)
     # If all_RMSD is null, i.e. the earlier part of function has not run this 
     # instance, due to file already existing
-    if pandas.isnull(all_RMSD).any().any():
-        all_RMSD = pandas.read_csv(os.path.join(out_dir,RMSD_filename),
+    if pd.isnull(all_RMSD).any().any():
+        all_RMSD = pd.read_csv(os.path.join(out_dir,RMSD_filename),
                                    header =0, index_col =0)
     if not os.path.exists(os.path.join(out_dir,RMSD_hist_filename)):
 
         fig, ax =  myfig()
 
-        bins = numpy.arange(0,1.05,0.05)
-        counts, bins, patches = plt.hist(numpy.clip(numpy.concatenate(
+        bins = np.arange(0,1.05,0.05)
+        counts, bins, patches = plt.hist(np.clip(np.concatenate(
                                             all_RMSD.values),bins[0],bins[-1]),
                                             bins=bins)
         # set xtick labels, to align with values clipped at 1.0
@@ -374,7 +377,7 @@ def RMSD_histogram(all_RMSD,out_dir,RMSD_filename,fit_type):
 
         num_ticks=len(xticks)
         plt.xlim([0,1.05])
-        plt.xticks(0.05*numpy.arange(num_ticks)+0.025)
+        plt.xticks(0.05*np.arange(num_ticks)+0.025)
         ax.set_xticklabels(xticks)
 
         plt.xlabel('RMSD {}  vs ringer data'.format(fit_type))
@@ -387,7 +390,7 @@ def RMSD_histogram(all_RMSD,out_dir,RMSD_filename,fit_type):
 def peak_angle_histogram(max_peak_angle,out_dir):
     
         fig, ax = myfig()
-        counts, bins, patches = plt.hist(numpy.concatenate(
+        counts, bins, patches = plt.hist(np.concatenate(
                                             max_peak_angle,axis=0),
                                             bins=60, normed=True)
         ax.set_xlim([0,360])
@@ -440,8 +443,8 @@ def pairwise_heatmap(pairwise_csv, residue, out_dir,pairwise_type,
                      min_scale = -1, max_scale = 1):
     """Plot heatmap from csv file with pairwise comparisons between datasets"""
  
-    # Load csv into pandas DataFrame
-    data = pandas.read_csv(pairwise_csv, index_col=0)
+    # Load csv into pd DataFrame
+    data = pd.read_csv(pairwise_csv, index_col=0)
     assert (len(data) == len(params.input.dir)),(
            'Input CSV data is length {} for {} datasets.'
            'Lengths should match'.format(len(data)+1,len(params.input.dir)))
@@ -474,7 +477,7 @@ def pairwise_heatmap(pairwise_csv, residue, out_dir,pairwise_type,
     ax.set_frame_on(False)
 
     # Set tick positions
-    ax.set(xticks=numpy.arange(len(dataset_labels))+0.5,xticklabels=dataset_labels,yticks = numpy.arange(len(dataset_labels))+0.5,yticklabels=dataset_labels)      #ax.set_xticks()
+    ax.set(xticks=np.arange(len(dataset_labels))+0.5,xticklabels=dataset_labels,yticks = np.arange(len(dataset_labels))+0.5,yticklabels=dataset_labels)      #ax.set_xticks()
 
     #Set a table like display
     ax.invert_yaxis()
@@ -504,8 +507,8 @@ def pairwise_heatmap(pairwise_csv, residue, out_dir,pairwise_type,
 def cluster_heatmap(input_csv, out_dir, pairwise_type, fit_type, subset):
     """Plot heatmap from csv file with pairwise comparisons between datasets"""
 
-    # Load csv into pandas DataFrame
-    data = pandas.read_csv(input_csv, index_col=0)
+    # Load csv
+    data = pd.read_csv(input_csv, index_col=0)
 
     dataset_labels = data.columns.values
     residue_labels = data.index.values
@@ -541,9 +544,9 @@ def cluster_heatmap(input_csv, out_dir, pairwise_type, fit_type, subset):
     ax.set_frame_on(False)
 
     # Set tick positions
-    ax.set(xticks=numpy.arange(len(dataset_labels)) + 0.5,
+    ax.set(xticks=np.arange(len(dataset_labels)) + 0.5,
            xticklabels=dataset_labels,
-           yticks = numpy.arange(len(residue_labels)) + 0.5,
+           yticks = np.arange(len(residue_labels)) + 0.5,
            yticklabels=residue_labels)
 
     #Set a table like display
