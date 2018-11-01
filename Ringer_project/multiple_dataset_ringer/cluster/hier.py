@@ -10,7 +10,8 @@ import time
 from scipy.cluster.hierarchy import linkage, fcluster
 
 # Imported functions
-from multiple_dataset_ringer.plotting.plots import plot_dendrogram, number_clusters_histogram
+from plotting.plots import plot_dendrogram
+from plotting.plots import number_clusters_histogram
 
 ###############################################################
 logger = logging.getLogger(__name__)
@@ -26,7 +27,6 @@ ch = logging.StreamHandler()
 ch.setLevel(logging.DEBUG)
 ch.setFormatter(formatter)
 logger.addHandler(ch)
-
 
 ###################################################################
 # Hierarichial agglomerative clustering used for selecting out
@@ -56,18 +56,6 @@ def hier_agg_cluster(base_input_csv,
 
     num_cluster_all=[]
 
-    print(base_input_csv)
-    print("+++++++++++++")
-    print(pairwise_type)
-    print("--------------")
-    print(datasets)
-    print(")))))))))))")
-    print(ref_set)
-    print("*************")
-    print(ref_set.index)
-    print("!!!!!!!!!!!!!!!!!")
-    print(ref_set.index.values)
-    print("$$$$$$$$$$$$")
     clusters_weight = pandas.DataFrame(index=ref_set.index.values,
                                        columns=datasets)
 

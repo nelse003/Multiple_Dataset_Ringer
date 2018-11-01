@@ -1,41 +1,40 @@
 import glob
 import libtbx.phil
 import logging
+import logging.config
 import matplotlib
 import numpy
 import os
-import pandas
+import pandas as pd
 import sys
-from giant.structure.select import protein
-from iotbx.pdb import hierarchy
-from itertools import izip
 from string import ascii_letters
 
 # Correlation functions
-from correlation import correlation_single_residue
-from fitting import calculate_euclidean_distance
+from correlation.correlation import correlation_single_residue
+from fitting.fitting import calculate_euclidean_distance
 # Fitting functions
-from fitting import fit_all_datasets
-from fitting import generate_RMSD
+from fitting.fitting import fit_all_datasets
+from fitting.fitting import generate_RMSD
 # Hierarichal clustering functions
-from multiple_dataset_ringer.cluster.hier import (hier_agg_cluster, find_pairwise_range)
-from multiple_dataset_ringer.plotting.plots import average_ringer_plots
-from multiple_dataset_ringer.plotting.plots import cluster_heatmap
+from cluster.hier import hier_agg_cluster
+from cluster.hier import find_pairwise_range
+from plotting.plots import average_ringer_plots
+from plotting.plots import cluster_heatmap
 # Plotting functions
-from multiple_dataset_ringer.plotting.plots import line_plot_ringer
-from multiple_dataset_ringer.plotting.plots import multiple_line_plot_ringer
-from multiple_dataset_ringer.plotting.plots import pairwise_heatmap
-from multiple_dataset_ringer.plotting.plots import peak_angle_histogram
-from multiple_dataset_ringer.plotting.plots import plot_RMSD_vs_dataset_score
-from multiple_dataset_ringer.plotting.plots import plot_RMSD_vs_residue_score
-from multiple_dataset_ringer.plotting.plots import plot_RMSD_vs_resolution
-from multiple_dataset_ringer.plotting.plots import plot_correlation_vs_fitting
-from multiple_dataset_ringer.plotting.plots import plot_resloution_vs_dataset_score
+from plotting.plots import line_plot_ringer
+from plotting.plots import multiple_line_plot_ringer
+from plotting.plots import pairwise_heatmap
+from plotting.plots import peak_angle_histogram
+from plotting.plots import plot_RMSD_vs_dataset_score
+from plotting.plots import plot_RMSD_vs_residue_score
+from plotting.plots import plot_RMSD_vs_resolution
+from plotting.plots import plot_correlation_vs_fitting
+from plotting.plots import plot_resloution_vs_dataset_score
 # Sorting & Interpolating angles from ringer output
-from multiple_dataset_ringer.process.interpolate import linear_interpolate_ringer_results
-from multiple_dataset_ringer.process.interpolate import normalise_and_sort_ringer_results
+from process.interpolate import interpolate_all_ringer_results
 # Ringer Processing with absolute electron density scaling (F000)
-from process import process_with_ringer
+from process.process import process_with_ringer
+from process.process import process_all_with_ringer
 
 matplotlib.use('Agg')
 matplotlib.interactive(0)
@@ -105,70 +104,34 @@ settings {
 # Logging
 ###############################################################################
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-fh = logging.FileHandler('ringer_script.log')
-fh.setLevel(logging.DEBUG)
-fh.setFormatter(formatter)
-logger.addHandler(fh)
-
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-ch.setFormatter(formatter)
-logger.addHandler(ch)
-
-
-def rename_chain_if_differs(pdb, ref_pdb):
-    """ Rename protein pdb chain to that of reference pdb if different.
-
-    Parameters
-    ----------
-    pdb: str
-        path of pdb that is being compared to reference pdb
-    ref_pdb: str
-        path of reference pdb
-
-    Returns
-    -------
-    pdb: str
-        path to pdb, edited name iof pdb had the same chain
-
-    Notes
-    --------
-    Runs phenix.pdbtools because initial attempt
-    to use hierarchy editing failed.
-
-    Example command is:
-
-    phenix.pdbtools dimple.pdb rename_chain_id.old_id=D \
-    rename_chain_id.new_id=A output.file_name="dimple_edited.pdb"
-
-    https://www.phenix-online.org/documentation/reference/pdbtools.html#manipulations-on-a-model-in-a-pdb-file-including
-
-    """
-    orig_pdb = pdb
-    edited_pdb = os.path.join(os.path.dirname(pdb), "dimple_edited.pdb")
-    if os.path.exists(edited_pdb):
-        pdb=edited_pdb
-
-    pdb_in = hierarchy.input(file_name=pdb)
-    ref_pdb_in = hierarchy.input(file_name=ref_pdb)
-
-    for chain, ref_chain in izip(
-            protein(pdb_in.hierarchy, copy=False).only_model().chains(),
-            protein(ref_pdb_in.hierarchy, copy=False).only_model().chains()):
-
-        if chain.id != ref_chain.id:
-
-            os.system('phenix.pdbtools {} rename_chain_id.old_id={}'
-                      ' rename_chain_id.new_id={}'
-                      ' output.file_name={}'.format(
-                orig_pdb, chain.id, ref_chain.id, edited_pdb))
-
-            pdb = edited_pdb
-
-    return pdb
+logging.config.dictConfig({
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'standard': {
+            'format': '%(asctime)s - %(levelname)s - %(message)s'
+        },
+    },
+    'handlers': {
+        'default': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler'
+        },
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': 'ringer.log'
+        },
+    },
+    'loggers': {
+        '': {
+            'handlers': ['default'],
+            'level': 'INFO',
+            'propagate': True
+        }
+    }
+})
 
 
 def run(params):
@@ -196,176 +159,61 @@ def run(params):
 
     """
 
-    # Dictionary to store all of the
-    # ringer results for each of the 
-    # datasets
-    all_results = {}
-
-    # Create an output directory if it doesn't already exist
-    if not os.path.isdir(params.output.out_dir):
-        os.makedirs(params.output.out_dir)
-
-    # Resolution CSV filename & path
-    resolution_csv_path = os.path.join(params.output.out_dir,
-                                       'dataset_resolution.csv')
-    # DataFrame to store resolution
-    dataset_resolution = pandas.DataFrame(index=params.input.dir,
-                                          columns=['Resolution'])
-
-    # Generate ringer results & resolution information
-    ref_pdb = None
-
-    for dataset_dir in params.input.dir:
-        # Label the dataset by the directory name
-        dataset_label = os.path.basename(dataset_dir.rstrip('/'))
-        pdb = glob.glob(os.path.join(dataset_dir, params.input.pdb_style))
-        mtz = glob.glob(os.path.join(dataset_dir, params.input.mtz_style))
-
-        if not pdb:
-            continue
-
-        if not mtz:
-            continue
-
-        pdb = pdb[0]
-        mtz = mtz[0]
-
-        if ref_pdb is None:
-            ref_pdb = pdb
-
-        if params.settings.sample_only_ref_pdb is not None:
-            pdb = ref_pdb
-
-        pdb = rename_chain_if_differs(pdb, ref_pdb)
-
-        if not os.path.exists(pdb):
-            print('Skipping dir: No PDB Files found in {} matching {}'.format(
-                dataset_dir, params.input.pdb_style))
-            continue
-
-        if not os.path.exists(mtz):
-            print('Skipping dir: No MTZ Files found in {} matching {}'.format(
-                dataset_dir, params.input.mtz_style))
-            continue
-
-        # Process dataset with ringer and convert results to DataFrame
-        ringer_csv = process_with_ringer(pdb=pdb,
-                                         mtz=mtz,
-                                         angle_sampling=params.settings.angle_sampling,
-                                         output_dir=dataset_dir,
-                                         column_labels=params.input.column_labels)
-
-        ringer_results = pandas.DataFrame.from_csv(ringer_csv, header=None)
-
-        # Only run if resolution csv does not exist
-
-        # This code is obsifcating and confusing.
-        # Check why we need a resolution check, and replace if necessary
-
-        # if resolution_csv_path is not None:
-        #     if not os.path.exists(resolution_csv_path):
-        #         hkl_in = any_reflection_file(file_name=mtz)
-        #         miller_arrays = hkl_in.as_miller_arrays()
-
-        # Change order of residue name.
-        # This is needed for the comparison:
-        # current_dataset_results = dataset_results.loc[(dataset_results.index == residue)]
-        # ~ line 238
-
-        for i in range(0, len(ringer_results.index)):
-            res_split = ringer_results.index.values[i].rsplit(' ')
-            if len(res_split) > 2:
-                ringer_results.index.values[i] = res_split[0] + ' ' + res_split[1]
-
-        all_results[dataset_label] = ringer_results
-        print(dataset_label)
-        # dataset_resolution.loc[dataset_label] = resolution
-
+    logger.info("Produce a dictionary of Dataframes, "
+                "each containing ringer results for a dataset")
+    all_results = process_all_with_ringer(params)
     datasets = all_results.keys()
 
-    # Resolution to CSV
-    if not os.path.exists(resolution_csv_path):
-        dataset_resolution.to_csv(resolution_csv_path)
-        logger.info('Resolution CSV generated')
-    else:
-        logger.info('Resolution CSV already generated')
-
-    # Pull out the "first" ringer results set as a reference
+    logger.info("Pull out the first ringer results set as a reference")
     ref_set = all_results.values()[0]
 
-    # Name for storage of interpolated results (without residue)
+    logger.info("Choose a map_type: {}\n"
+                "angle_type: {} \n"
+                " by reducing reference set".format(params.settings.map_type,
+                                                    params.settings.angle_type))
+
+    ref_set = ref_set.loc[(ref_set[1] == params.settings.map_type)]
+    ref_set = ref_set.loc[(ref_set[2] == params.settings.angle_type)]
+
+    logger.info("Interpolating all ringer results to be on same angle range")
+    interpolate_all_ringer_results(ref_set, all_results, params)
+
     interpolate_base_csv = \
         '_{}_Datasets_{}_{}-ringer.csv'.format(len(datasets),
                                                params.settings.map_type,
                                                params.settings.angle_type)
 
-    # Choose a map_type/angle_type by reducing reference set
-    ref_set = ref_set.loc[(ref_set[1] == params.settings.map_type)]
-    ref_set = ref_set.loc[(ref_set[2] == params.settings.angle_type)]
-
-    # Iterate through the residues
+    logger.info("Producing ringer line plots for each residue: showing all datasets")
     for residue, data in ref_set.iterrows():
-        residue_data_list = []
 
-        # Create ouput directories for each residue
-        if not os.path.isdir(os.path.join(params.output.out_dir, residue)):
-            os.makedirs(os.path.join(params.output.out_dir, residue))
-            # Output filename for interpolated data
-            # (Used to check existence of output)
+        interpolate_csv = residue + interpolate_base_csv
+
+        single_residue_multiple_datasets = pd.read_csv(
+            os.path.join(params.output.out_dir,
+                         residue,
+                         interpolate_csv),
+            index_col=0)
+
+        if not os.path.exists(os.path.join(params.output.out_dir,
+                                           residue,
+                                           'all-{}-{}-dataset.png'.format(
+                                               residue, len(ref_set)))):
+
+            multiple_line_plot_ringer(results_df=single_residue_multiple_datasets,
+                                      title=residue,
+                                      filename='all-{}-{}-dataset.png'.format(
+                                          residue, len(ref_set)),
+                                      out_dir=os.path.join(params.output.out_dir, residue))
+        else:
+            logger.info("{} :Ringer plot for alreasy generated".format(residue))
+
+    # Generate correlations between datasets for each residue
+    for residue, data in ref_set.iterrows():
+
         interpolate_csv = residue + interpolate_base_csv
 
         # Output filename for correlation data
-        correlation_csv = '{}_from {} datasets-correlation-ringer.csv'.format(
-            residue, len(datasets))
-        if not os.path.exists(os.path.join(params.output.out_dir, residue, interpolate_csv)):
-
-            # Iterate through the datasets
-            for dataset_label, dataset_results in all_results.iteritems():
-
-                current_dataset_results = dataset_results.loc[(
-                    dataset_results.index == residue)]
-
-                if current_dataset_results.empty:
-                    continue
-
-                sorted_angles, sorted_map_values = \
-                    normalise_and_sort_ringer_results(
-                    current_dataset_results, params=params)
-
-                interpolated_angles, \
-                interpolated_map_values = linear_interpolate_ringer_results(
-                    sorted_angles, sorted_map_values,
-                    angle_sampling=params.settings.angle_sampling)
-
-                # Store these in a list
-                residue_data_list.append((interpolated_angles,
-                                          interpolated_map_values))
-
-                # If it doesn't exist: Create dataframe to store results from
-                # one residue, across multiple datasets
-                if'single_residue_multiple_datasets' not in locals():
-                    single_residue_multiple_datasets = pandas.DataFrame(
-                        columns=interpolated_angles)
-
-                # Populate dataframe with results from one residue,
-                # across multiple datasets
-                single_residue_multiple_datasets.loc['{}'.format(
-                    dataset_label)] = interpolated_map_values
-
-            # Print results for all of the datasets for this residue in the same graph
-            multiple_line_plot_ringer(residue_data_list,
-                                      title=residue,
-                                      filename='all-{}-{}-dataset.png'.format(
-                                          residue, len(residue_data_list)),
-                                      out_dir=os.path.join(params.output.out_dir, residue))
-
-            # Output CSV from one resiude, multiple datasets
-            pandas.DataFrame.to_csv(single_residue_multiple_datasets,
-                                    os.path.join(params.output.out_dir, residue,
-                                                 interpolate_csv))
-        else:
-            logger.info(
-                '{}: Interpolated CSVs already generated,'.format(residue))
+        correlation_csv = '{}_from {} datasets-correlation-ringer.csv'.format(residue, len(datasets))
 
         # Generate correlation CSV
         if not os.path.exists(os.path.join(params.output.out_dir,
@@ -374,27 +222,28 @@ def run(params):
             correlation_single_residue(input_csv=os.path.join(params.output.out_dir,
                                                               residue,
                                                               interpolate_csv),
-                                       residue=residue,
                                        output_dir=os.path.join(params.output.out_dir, residue),
-                                       out_filename=correlation_csv,
-                                       params=params)
+                                       out_filename=correlation_csv)
         else:
             logger.info('{}: Correlation CSV already generated,'.format(residue))
+
+    exit()
 
     ##########################################################################
     # Generate Average Ringer Plots
     ##########################################################################
     average_type = "Median"
-    if not os.path.exists(os.path.join(params.output.out_dir, '{}_ringer_results'.format(average_type),
+    if not os.path.exists(os.path.join(params.output.out_dir,
+                                       '{}_ringer_results'.format(average_type),
                                        '{}_ringer_{}_datasets.csv'.format(average_type,
                                                                           len(datasets)))):
+
         average_ringer_plots(base_csv=interpolate_base_csv, ref_set=ref_set,
                              out_dir=params.output.out_dir, params=params,
                              average_type=average_type)
     else:
         logger.info('Average Ringer plots already generated')
 
-    exit()
 
     # Blue line plots
     # average_ringer_plots(base_csv=interpolate_base_csv, ref_set=ref_set,
@@ -446,7 +295,7 @@ def run(params):
                                                                        params.settings.map_type,
                                                                        params.settings.angle_type)
 
-            interpolated_results = pandas.read_csv(
+            interpolated_results = pd.read_csv(
                 os.path.join(params.output.out_dir, residue, interpolate_csv),
                 index_col=0)
 
@@ -615,21 +464,21 @@ def run(params):
     # Explore cluster weights
     #########################################################################
     subset ='Amplitudes' 
-    Adj_clusters_weight = pandas.read_csv(
+    Adj_clusters_weight = pd.read_csv(
         os.path.join(params.output.out_dir,
                      'Adj_clusters_weight_{}_{}_{}.csv'.format(
                          pairwise_type, fit_type, subset)),
         header=0,
         index_col=0)
 
-    Adj_clusters_weight_corr = pandas.read_csv(
+    Adj_clusters_weight_corr = pd.read_csv(
         os.path.join(params.output.out_dir,
                      'Adj_clusters_weight_{}_{}_{}.csv'.format('correlation', '', '')),
         header=0,
         index_col=0)
 
     subset='Amplitudes_Means'
-    Adj_clusters_weight_means = pandas.read_csv(
+    Adj_clusters_weight_means = pd.read_csv(
         os.path.join(params.output.out_dir,
                      'Adj_clusters_weight_{}_{}_{}.csv'.format(
                          pairwise_type, fit_type, subset)),
@@ -641,7 +490,7 @@ def run(params):
     #########################################################################
     RMSD_filename = 'RMSD, with {}.csv'.format(fit_type)
 
-    all_RMSD = pandas.read_csv(os.path.join(params.output.out_dir,
+    all_RMSD = pd.read_csv(os.path.join(params.output.out_dir,
                                             RMSD_filename),
                                index_col=0,
                                header=0)
@@ -656,7 +505,7 @@ def run(params):
     dataset_means_score = Adj_clusters_weight_means.sum()
     residue_means_score = (Adj_clusters_weight_means**2).sum(axis=1)
 
-    score_matrix = pandas.DataFrame(index=residue_score.index,
+    score_matrix = pd.DataFrame(index=residue_score.index,
                                     columns=dataset_score.index)
 
     for dataset in dataset_score.index:
@@ -666,14 +515,14 @@ def run(params):
   
     score_matrix.to_csv('score_matrix.csv')
 
-    dataset_resolution = pandas.read_csv(resolution_csv_path,
+    dataset_resolution = pd.read_csv(resolution_csv_path,
                                          header=0,
                                          index_col=0)
         
     ######################################
     # Reading in subset of bound ligands 
     ######################################
-    # bound_ligands=pandas.read_csv('bound_ligands.csv')
+    # bound_ligands=pd.read_csv('bound_ligands.csv')
 
     ###############
     # Plotting 

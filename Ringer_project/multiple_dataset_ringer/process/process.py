@@ -1,21 +1,161 @@
-
-##########################################################
-#Packages
-
 import os
 import sys
 import copy
 import glob
+import pandas as pd
+import logging
+from itertools import izip
+
+# Package for getting summary from crystal (mtz): resolution
+from iotbx.reflection_file_reader import any_reflection_file
+from iotbx.pdb import hierarchy
+from cctbx import miller
 
 # For command manager         
 from bamboo.common.command import CommandManager
 
-# Package for getting summary from crystal (mtz): resolution
-from iotbx.reflection_file_reader import any_reflection_file
-from cctbx import miller
 from giant.jiffies.quick_insert_f000 import run as insert_f000
 from giant.jiffies.quick_insert_f000 import master_phil as f000_phil
+from giant.structure.select import protein
 
+logger = logging.getLogger(__name__)
+
+def rename_chain_if_differs(pdb, ref_pdb):
+    """ Rename protein pdb chain to that of reference pdb if different.
+
+    Parameters
+    ----------
+    pdb: str
+        path of pdb that is being compared to reference pdb
+    ref_pdb: str
+        path of reference pdb
+
+    Returns
+    -------
+    pdb: str
+        path to pdb, edited name iof pdb had the same chain
+
+    Notes
+    --------
+    Runs phenix.pdbtools because initial attempt
+    to use hierarchy editing failed.
+
+    Example command is:
+
+    phenix.pdbtools dimple.pdb rename_chain_id.old_id=D \
+    rename_chain_id.new_id=A output.file_name="dimple_edited.pdb"
+
+    https://www.phenix-online.org/documentation/reference/pdbtools.html#manipulations-on-a-model-in-a-pdb-file-including
+
+    """
+    orig_pdb = pdb
+    edited_pdb = os.path.join(os.path.dirname(pdb), "dimple_edited.pdb")
+    if os.path.exists(edited_pdb):
+        pdb=edited_pdb
+
+    pdb_in = hierarchy.input(file_name=pdb)
+    ref_pdb_in = hierarchy.input(file_name=ref_pdb)
+
+    for chain, ref_chain in izip(
+            protein(pdb_in.hierarchy, copy=False).only_model().chains(),
+            protein(ref_pdb_in.hierarchy, copy=False).only_model().chains()):
+
+        if chain.id != ref_chain.id:
+
+            os.system('phenix.pdbtools {} rename_chain_id.old_id={}'
+                      ' rename_chain_id.new_id={}'
+                      ' output.file_name={}'.format(
+                orig_pdb, chain.id, ref_chain.id, edited_pdb))
+
+            pdb = edited_pdb
+
+    return pdb
+
+def rename_residue_labels(ringer_results):
+    """ Change order of residue labels in dataframe
+    
+    This is needed for the comparison:
+    
+    current_dataset_results = dataset_results.loc[(dataset_results.index == residue)
+    
+    Parameters
+    ----------
+    ringer_results: pandas.DataFrame
+        DataFrame containing a single dataset ringer results
+
+    Returns
+    -------
+    ringer_results: pandas.DataFrame
+        DataFrame containing a single dataset ringer results
+
+    """
+    for i in range(0, len(ringer_results.index)):
+        res_split = ringer_results.index.values[i].rsplit(' ')
+        if len(res_split) > 2:
+            ringer_results.index.values[i] = res_split[0] + ' ' + res_split[1]
+
+    return ringer_results
+
+def process_all_with_ringer(params):
+
+    # Dictionary to store all of the
+    # ringer results for each of the
+    # datasets
+    all_results = {}
+
+    # Create an output directory if it doesn't already exist
+    if not os.path.isdir(params.output.out_dir):
+        os.makedirs(params.output.out_dir)
+
+    # Generate ringer results & resolution information
+    ref_pdb = None
+
+    for dataset_dir in params.input.dir:
+
+        # Label the dataset by the directory name
+        dataset_label = os.path.basename(dataset_dir.rstrip('/'))
+        pdb = glob.glob(os.path.join(dataset_dir, params.input.pdb_style))
+        mtz = glob.glob(os.path.join(dataset_dir, params.input.mtz_style))
+
+        if not pdb:
+            continue
+
+        if not mtz:
+            continue
+
+        pdb = pdb[0]
+        mtz = mtz[0]
+
+        if ref_pdb is None:
+            ref_pdb = pdb
+
+        if params.settings.sample_only_ref_pdb is not None:
+            pdb = ref_pdb
+
+        pdb = rename_chain_if_differs(pdb, ref_pdb)
+
+        if not os.path.exists(pdb):
+            print('Skipping dir: No PDB Files found in {} matching {}'.format(
+                dataset_dir, params.input.pdb_style))
+            continue
+
+        if not os.path.exists(mtz):
+            print('Skipping dir: No MTZ Files found in {} matching {}'.format(
+                dataset_dir, params.input.mtz_style))
+            continue
+
+        # Process dataset with ringer and convert results to DataFrame
+        ringer_csv = process_with_ringer(pdb=pdb,
+                                         mtz=mtz,
+                                         angle_sampling=params.settings.angle_sampling,
+                                         output_dir=dataset_dir,
+                                         column_labels=params.input.column_labels)
+
+        ringer_results = pd.DataFrame.from_csv(ringer_csv, header=None)
+        ringer_results = rename_residue_labels(ringer_results)
+        all_results[dataset_label] = ringer_results
+
+    return all_results
 
 def process_with_ringer(pdb, mtz, angle_sampling, output_dir=None,
                         output_base=None, column_labels="FWT,PHWT"):

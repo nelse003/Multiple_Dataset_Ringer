@@ -32,18 +32,6 @@ import matplotlib.lines as mlines
 
 import logging
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-fh = logging.FileHandler('ringer_script.log')
-fh.setLevel(logging.DEBUG)
-fh.setFormatter(formatter)
-logger.addHandler(fh)
-
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-ch.setFormatter(formatter)
-logger.addHandler(ch)
 
 
 ###############################################################################
@@ -133,22 +121,19 @@ def line_plot_ringer(sorted_angles,sorted_map_values,title,filename,out_dir):
     plt.savefig(os.path.join(out_dir,filename))
     plt.close(fig)
 
-def multiple_line_plot_ringer(all_data_list,title, filename, out_dir):
+def multiple_line_plot_ringer(results_df, title, filename, out_dir):
     """Plot multiple ringer plots  """
-    fig = myfig()
+
     plt.title(title)
 
-    for i in range(0,len(all_data_list)):
-        sorted_angles=all_data_list[i][0]
-        sorted_map_values=all_data_list[i][1]
-        plt.plot(sorted_angles, sorted_map_values)
+    angles = results_df.columns.values
 
-        if len(all_data_list) < 10:
-            plt.legend()
+    for index, dataset in results_df.iterrows():
+        plt.plot(angles, dataset.values)
 
     plt.xlabel('Angle')
     plt.tight_layout()
-    plt.savefig(os.path.join(out_dir,filename))
+    plt.savefig(os.path.join(out_dir, filename))
     plt.close()
 
 def multiple_line_plot_bold(bold_angles, bold_map_values,all_data_list, title,

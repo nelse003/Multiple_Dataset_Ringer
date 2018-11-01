@@ -3,7 +3,7 @@
 import copy
 import glob
 import logging
-import numpy
+import numpy as np
 #######################################################################
 # Packages
 #######################################################################
@@ -16,35 +16,20 @@ from scipy.spatial.distance import euclidean
 from sklearn.metrics import mean_squared_error
 
 # Plotting functions import
-from multiple_dataset_ringer.plotting.plots import RMSD_histogram
-from multiple_dataset_ringer.plotting.plots import plot_fit
-
-#######################################################################
-# Logging
-#######################################################################
+from plotting.plots import RMSD_histogram
+from plotting.plots import plot_fit
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-fh = logging.FileHandler('ringer_script.log')
-fh.setLevel(logging.DEBUG)
-fh.setFormatter(formatter)
-logger.addHandler(fh)
-
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-ch.setFormatter(formatter)
-logger.addHandler(ch)
-
-#######################################################################
-# Fitting Functions
-#######################################################################
-
 
 def single_gaussian(x, a, x0, sigma):
-    """Gaussain to fit data to (3 parameters)"""
-    return a*numpy.exp(-(x-x0)**2/(2*sigma**2))
+    """Gaussian to fit data (3 parameters)
+    
+    Parameters
+    ------------
+    x: float
+        
+    """
+    return a*np.exp(-(x-x0)**2/(2*sigma**2))
 
 
 def three_gaussian_offset(x, a1, x01, sigma_1, a2, x02, sigma_2, a3, x03,
@@ -55,7 +40,7 @@ def three_gaussian_offset(x, a1, x01, sigma_1, a2, x02, sigma_2, a3, x03,
     return (single_gaussian(x, a1, x01, sigma_1) +
             single_gaussian(x, a2, x02, sigma_2) +
             single_gaussian(x, a3, x03, sigma_3) +
-            offset )
+            offset)
 
 
 def three_gaussian_fix(x, a1, sigma_1, a2, sigma_2, a3, sigma_3, offset):
@@ -136,16 +121,16 @@ def fit_all_datasets(out_dir, ref_set, map_type, angle_type, params,pairwise_typ
 
             # Bounds for means for three gaussian offset
             if mean_bound is not None:
-                bounds = ([-numpy.inf,60-mean_bound,-numpy.inf,
-                           -numpy.inf,180-mean_bound,-numpy.inf,
-                           -numpy.inf,300-mean_bound,-numpy.inf,
-                           -numpy.inf],
-                          [numpy.inf,60+mean_bound,numpy.inf,
-                           numpy.inf,180+mean_bound,numpy.inf,
-                           numpy.inf,300+mean_bound,numpy.inf,
-                           numpy.inf])
+                bounds = ([-np.inf,60-mean_bound,-np.inf,
+                           -np.inf,180-mean_bound,-np.inf,
+                           -np.inf,300-mean_bound,-np.inf,
+                           -np.inf],
+                          [np.inf,60+mean_bound,np.inf,
+                           np.inf,180+mean_bound,np.inf,
+                           np.inf,300+mean_bound,np.inf,
+                           np.inf])
             else:
-                bounds = (-numpy.inf,numpy.inf)
+                bounds = (-np.inf,np.inf)
 
             for dataset in interpolated_results.index:
 
@@ -301,7 +286,7 @@ def generate_RMSD(out_dir, ref_set, map_type, angle_type, fit_type,
                 c=y_fit-y
                 d=c.dot(c)/len(c)
                 output=d**0.5
-                numpy.testing.assert_almost_equal(output,RMSD,decimal=7,
+                np.testing.assert_almost_equal(output,RMSD,decimal=7,
                               err_msg="RMSD not calculated correctly")
 
                 RMSD_result=pandas.DataFrame(data = RMSD, index = [dataset],
