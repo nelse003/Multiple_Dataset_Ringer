@@ -1,40 +1,203 @@
 import os
+import glob
+import time
 from itertools import izip
 
-# ground_state_model_dir = "/media/nelse003/Data/ringer_test_set/PTP1B/ground_state_models"
-# bound_state_model_dir = "/media/nelse003/Data/ringer_test_set/PTP1B/bound_state_models"
-# merged_dir = "/media/nelse003/Data/ringer_test_set/PTP1B/merged_models"
+def prepare_all_missing_reflections(input_dir,
+                                    mtz_style="*.mtz",
+                                    pdb_style="*.pdb"):
 
-#input_dir ="/media/nelse003/Data/ringer_test_set/PTP1B/datasets"
-input_dir = "/hdlocal/home/enelson/PTP1B/datasets_single_pdb"
+    """Prepare all datasets with missing reflections
+    
+    Notes
+    -----------
+    
+    This is trivially parallelisable and needs to be parallelised 
+    
+    """
 
-if not os.path.exists(input_dir):
-    os.mkdir(input_dir)
+    for dataset in os.listdir(input_dir):
+        os.chdir(os.path.join(input_dir,dataset))
 
-# if not os.path.exists(merged_dir):
-#     os.mkdir(merged_dir)
+        mtz = os.path.join(input_dir,
+                           dataset,
+                           glob.glob(mtz_style)[0])
 
-# input_models_dir = "/media/nelse003/Data/ringer_test_set/PTP1B/pandda_input_models"
-# mtz_dir = "/media/nelse003/Data/ringer_test_set/PTP1B/mtzs"
+        pdb = os.path.join(input_dir,
+                           dataset,
+                           glob.glob(pdb_style)[0])
 
-input_models_dir = "/hdlocal/home/enelson/PTP1B/pandda_input_models"
-mtz_dir = "/hdlocal/home/enelson/PTP1B/mtzs"
+        prepare_missing_reflections(mtz, pdb)
 
-pdb_datasets = set(d[0:11] for d in os.listdir(input_models_dir))
-mtz_datasets = set(d[0:11] for d in os.listdir(mtz_dir))
 
-for dataset in pdb_datasets.intersection(mtz_datasets):
 
-    if not os.path.exists(os.path.join(input_dir,dataset)):
-        os.mkdir(os.path.join(input_dir,dataset))
+def prepare_missing_reflections(mtz, pdb):
+    """ Prepare mtz file with missing reflections up to 999A
+    
+    Parameters
+    -------------
+    mtz: str
+        path to mtz file
+    pdb: str
+        path to pdb file
+        
+    Returns
+    -------------
+    output_mtz: str
+        path to output mtz file
+    """
+    t0 = time.time()
+    run_cad(mtz)
+    output_mtz = run_phenix_maps(mtz, pdb)
+    t1 = time.time()
 
-    os.symlink(os.path.join(mtz_dir, dataset + "_mrflagsref_idxs.mtz"),
-               os.path.join(input_dir, dataset,
-                            dataset + "_mrflagsref_idxs.mtz"))
+    print(t1 - t0)
 
-    os.symlink(os.path.join(input_models_dir, dataset + "-pandda-input.pdb"),
-               os.path.join(input_dir, dataset, dataset + "-pandda-input.pdb"))
+    return output_mtz
 
+def run_phenix_maps(mtz, pdb):
+    """ Run phenix.maps.
+    
+    Recalculate the 2Fo-DFc coefficients with phenix.maps
+    
+    which will create a file called OUTPUT_map_coeffs.mtz 
+    containing columns 2FOFCWT_fill and PH2FOFCWT_fill, 
+    which are the 2FOFC amplitudes and phases with 
+    missing values filled with their estimates
+    
+    Parameters
+    -------------
+    mtz: str
+        path to mtz file
+    pdb: str
+        path to pdb file
+
+    Returns
+    ------------
+    output_mtz: str
+        path to output mtz file
+    
+    """
+    output_mtz = pdb.rstrip(".pdb") + "_map_coeffs.mtz"
+
+    if os.path.exists(output_mtz):
+        return output_mtz
+
+    os.system("phenix.maps {} {}".format(mtz,pdb))
+
+    if os.path.exists(output_mtz):
+        return output_mtz
+    else:
+        raise ValueError("phenix.maps failed to generate output mtz"
+                         " {} from {} and {}".format(mtz, pdb, output_mtz))
+
+def run_cad(mtz):
+    """ Run CAD to add reflections to an mtz file
+    
+    Parameters
+    -------------
+    mtz: str
+        path to mtz file
+    
+    Returns
+    ------------
+    mtz_with_reflections: str
+        path to mtz file with added reflections
+    
+    """
+
+    mtz_with_reflections = mtz.rstrip(".mtz") + "with_missing_reflections.mtz"
+    high_res = get_high_resolution_limit(mtz)
+    cad_script = "cad hklin1 {} hklout {} <<eof\n"\
+                 " monitor BRIEF\n" \
+                 " labin file 1 - \n" \
+                 "  ALL\n"\
+                 " resolution file 1 999.0 {}\n"\
+                 "eof".format(mtz, mtz_with_reflections, high_res)
+    os.system(cad_script)
+
+    if os.path.exists(mtz_with_reflections):
+        return mtz_with_reflections
+    else:
+        raise ValueError("cad script failed for {}".format(mtz))
+
+def get_high_resolution_limit(mtz):
+    """ Get high resolution limit for a mtz file
+    
+    Uses mtzdmp to parse mtz file for high resolution limit. 
+    Requires CCP4 to be sourced.
+    
+    Parameters
+    -----------
+    mtz: str
+        path to mtz file to get high resolution limit from
+
+    Returns
+    -----------
+    high_res: float
+        high resolution limit from mtz file
+    
+    """
+    cwd = os.getcwd()
+    os.chdir(os.path.dirname(mtz))
+
+    mtzdmp_txt_file = "{}_dmp.txt".format(mtz.rstrip(".*"))
+    os.system("mtzdmp {} > {}".format(mtz, mtzdmp_txt_file))
+    os.chdir(cwd)
+
+    with open(mtzdmp_txt_file) as mtzdmp_file:
+        contents = mtzdmp_file.readlines()
+        res_range_line_number = 0
+        res_line = None
+        for i, line in enumerate(contents):
+            if " *  Resolution Range :" in line:
+                res_range_line_number = i
+                break
+        res_line = contents[i+2]
+
+    if res_line.split()[3] > res_line.split()[5]:
+        return res_line.split()[5]
+    else:
+        raise ValueError("High resolution limit {} "
+                         "is not smaller then "
+                         "low res limit {}".format(res_line.split()[5],
+                                                   res_line.split()[3]))
+
+
+def prepare_datasets_folder(input_models_dir, mtz_dir):
+
+    """ Generate pandda input like dataset forlders using symlinks
+    
+    From a folder containing all pdb files, and one contain all mtz
+    files create a directory strucutre with one folder per dataset
+    with an mtz and pdb file
+    
+    Parameters
+    -----------
+    input_models_dir: str
+        path to the input model directory
+    mtz_dir: str
+        path to mtz directory
+
+    Returns
+    ----------
+    None
+    """
+
+    pdb_datasets = set(d[0:11] for d in os.listdir(input_models_dir))
+    mtz_datasets = set(d[0:11] for d in os.listdir(mtz_dir))
+
+    for dataset in pdb_datasets.intersection(mtz_datasets):
+
+        if not os.path.exists(os.path.join(input_dir,dataset)):
+            os.mkdir(os.path.join(input_dir,dataset))
+
+        os.symlink(os.path.join(mtz_dir, dataset + "_mrflagsref_idxs.mtz"),
+                   os.path.join(input_dir, dataset,
+                                dataset + "_mrflagsref_idxs.mtz"))
+
+        os.symlink(os.path.join(input_models_dir, dataset + "-pandda-input.pdb"),
+                   os.path.join(input_dir, dataset, dataset + "-pandda-input.pdb"))
 
 
 def merge_ptpt1b(ground_state_model_dir, bound_state_model_dir, merged_dir):
@@ -67,6 +230,35 @@ def merge_ptpt1b(ground_state_model_dir, bound_state_model_dir, merged_dir):
                                              bound_state_pdb_path,
                                              log,
                                              output_pdb))
+
+
+
+# ground_state_model_dir = "/media/nelse003/Data/ringer_test_set/PTP1B/ground_state_models"
+# bound_state_model_dir = "/media/nelse003/Data/ringer_test_set/PTP1B/bound_state_models"
+# merged_dir = "/media/nelse003/Data/ringer_test_set/PTP1B/merged_models"
+
+#input_dir ="/media/nelse003/Data/ringer_test_set/PTP1B/datasets"
+input_dir = "/hdlocal/home/enelson/PTP1B/datasets"
+
+if not os.path.exists(input_dir):
+    os.mkdir(input_dir)
+
+# if not os.path.exists(merged_dir):
+#     os.mkdir(merged_dir)
+
+# input_models_dir = "/media/nelse003/Data/ringer_test_set/PTP1B/pandda_input_models"
+# mtz_dir = "/media/nelse003/Data/ringer_test_set/PTP1B/mtzs"
+
+input_models_dir = "/hdlocal/home/enelson/PTP1B/pandda_input_models"
+mtz_dir = "/hdlocal/home/enelson/PTP1B/mtzs"
+
+mtz = "/hdlocal/home/enelson/PTP1B/datasets/PTP1B-y0001/PTP1B-y0001_mrflagsref_idxs.mtz"
+pdb = "/hdlocal/home/enelson/PTP1B/datasets/PTP1B-y0001/PTP1B-y0001-pandda-input.pdb"
+
+
+prepare_all_missing_reflections(input_dir,
+                                mtz_style="*_mrflagsref_idxs.mtz",
+                                pdb_style="*-pandda-input.pdb")
 
 
 

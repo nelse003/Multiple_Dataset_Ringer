@@ -25,32 +25,46 @@ ch.setFormatter(formatter)
 logger.addHandler(ch)
 
 
-def normalise_and_sort_ringer_results(current_dataset_results,params):
+def normalise_and_sort_ringer_results(current_dataset_results, params):
     """Sorts ringer results by angle"""
 
     # Extract from current residue in dataset
+
+    print(current_dataset_results)
 
     residue = current_dataset_results.index[0]
     start_ang  = current_dataset_results.values[0,2]
     ang_rel = params.settings.angle_sampling * current_dataset_results.columns.values[3:]-3
     map_values = current_dataset_results.values[0,3:]
 
+    logger.debug("Start Angle: {}".format(start_ang))
+    logger.debug("Angle Relative: {}".format(start_ang))
+
     logger.info('Showing data for {}'.format(residue))
 
     # Set angles
     ang = (start_ang+ang_rel)%360
+    logger.debug("Angles: {}".format(ang))
 
     ###################################################
     # Sort Angles
     ##################################################
     sorted_idx = sorted(range(len(ang)), key=lambda i: ang[i])
+    logger.debug("Sorted Index: {}".format(sorted_idx))
+
     sorted_angles = [ang[i] for i in sorted_idx]
+    logger.debug("Sorted angles: {}".format(sorted_angles))
+
     sorted_map_values = [map_values[i] for i in sorted_idx]
+    logger.debug("Sorted map values: {}".format(sorted_map_values))
 
     return (sorted_angles, sorted_map_values)
 
 
-def linear_interpolate_ringer_results(sorted_angles,sorted_map_values,angle_sampling):
+def linear_interpolate_ringer_results(sorted_angles,
+                                      sorted_map_values,
+                                      angle_sampling):
+
     """ Interpolate ringer results to run across same angle range """
 
     # Extend the map values, and angles to include the first element at end 
@@ -65,7 +79,9 @@ def linear_interpolate_ringer_results(sorted_angles,sorted_map_values,angle_samp
     interpolated_angles = numpy.arange(1, 360, angle_sampling)
 
     # interpolate
-    interpolated_map_values = numpy.interp(interpolated_angles,sorted_angles,sorted_map_values)
+    interpolated_map_values = numpy.interp(interpolated_angles,
+                                           sorted_angles,
+                                           sorted_map_values)
 
     # Offset to set peaks [60,180,300]
     offset_map_values_end = interpolated_map_values[150:]

@@ -259,6 +259,7 @@ def run(params):
                                          output_dir=dataset_dir,
                                          column_labels=params.input.column_labels)
 
+
         ringer_results = pandas.DataFrame.from_csv(ringer_csv, header=None)
 
         # Only run if resolution csv does not exist
@@ -282,6 +283,7 @@ def run(params):
                 ringer_results.index.values[i] = res_split[0] + ' ' + res_split[1]
 
         all_results[dataset_label] = ringer_results
+        print(dataset_label)
         #dataset_resolution.loc[dataset_label] = resolution
 
     datasets = all_results.keys()
@@ -320,7 +322,6 @@ def run(params):
         # Output filename for correlation data
         correlation_csv = '{}_from {} datasets-correlation-ringer.csv'.format(
             residue, len(datasets))
-
         if not os.path.exists(os.path.join(params.output.out_dir, residue, interpolate_csv)):
 
             # Iterate through the datasets
@@ -356,7 +357,6 @@ def run(params):
                 # across multiple datasets
                 single_residue_multiple_datasets.loc['{}'.format(
                     dataset_label)] = interpolated_map_values
-
 
             # Print results for all of the datasets for this residue in the same graph
             multiple_line_plot_ringer(residue_data_list,

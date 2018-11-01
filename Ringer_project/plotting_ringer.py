@@ -86,7 +86,10 @@ def multiple_line_plot_ringer(all_data_list,title, filename, out_dir):
     for i in range(0,len(all_data_list)):
         sorted_angles=all_data_list[i][0]
         sorted_map_values=all_data_list[i][1]
-        pyplot.plot(sorted_angles,sorted_map_values)
+        pyplot.plot(sorted_angles, sorted_map_values)
+
+        if len(all_data_list) < 10:
+            pyplot.legend()
 
     pyplot.xlabel('Angle')
     pyplot.tight_layout()
