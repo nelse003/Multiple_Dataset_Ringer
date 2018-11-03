@@ -102,10 +102,11 @@ def run_cad(mtz):
         path to mtz file with added reflections
     
     """
+    mtz_with_reflections = mtz.rstrip(".mtz") + "with_missing_reflections.mtz"
+
     if os.path.exists(mtz_with_reflections):
         return mtz_with_reflections
 
-    mtz_with_reflections = mtz.rstrip(".mtz") + "with_missing_reflections.mtz"
     high_res = get_high_resolution_limit(mtz)
     cad_script = "cad hklin1 {} hklout {} <<eof\n"\
                  " monitor BRIEF\n" \
