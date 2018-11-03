@@ -46,12 +46,9 @@ def prepare_missing_reflections(mtz, pdb):
     output_mtz: str
         path to output mtz file
     """
-    t0 = time.time()
+
     run_cad(mtz)
     output_mtz = run_phenix_maps(mtz, pdb)
-    t1 = time.time()
-
-    print(t1 - t0)
 
     return output_mtz
 
@@ -105,6 +102,8 @@ def run_cad(mtz):
         path to mtz file with added reflections
     
     """
+    if os.path.exists(mtz_with_reflections):
+        return mtz_with_reflections
 
     mtz_with_reflections = mtz.rstrip(".mtz") + "with_missing_reflections.mtz"
     high_res = get_high_resolution_limit(mtz)
