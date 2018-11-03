@@ -225,11 +225,11 @@ def symlink_pdb_mtz_only(input_dir,
         if not os.path.exists(os.path.join(output_dir, dataset)):
             os.makedirs(os.path.join(output_dir, dataset))
 
-        os.symlink(os.path.join(input_dir, dataset + mtz_style),
+        os.symlink(os.path.join(input_dir, dataset, dataset + mtz_style),
                    os.path.join(output_dir, dataset,
                                 dataset + mtz_style))
 
-        os.symlink(os.path.join(input_dir, dataset + pdb_style),
+        os.symlink(os.path.join(input_dir, dataset, dataset + pdb_style),
                    os.path.join(output_dir, dataset, dataset + pdb_style))
 
 
