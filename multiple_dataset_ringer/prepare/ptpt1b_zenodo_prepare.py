@@ -164,7 +164,10 @@ def get_high_resolution_limit(mtz):
                                                    res_line.split()[3]))
 
 
-def prepare_datasets_folder(input_models_dir, mtz_dir):
+def prepare_datasets_folder(input_models_dir,
+                            mtz_dir,
+                            mtz_style="_mrflagsref_idxs.mtz",
+                            pdb_style="-pandda-input.pdb"):
 
     """ Generate pandda input like dataset forlders using symlinks
     
@@ -178,6 +181,10 @@ def prepare_datasets_folder(input_models_dir, mtz_dir):
         path to the input model directory
     mtz_dir: str
         path to mtz directory
+    mtz_style: str
+        filename common to all mtz
+    pdb_style: str
+        filename common to all pdbs
 
     Returns
     ----------
@@ -187,17 +194,44 @@ def prepare_datasets_folder(input_models_dir, mtz_dir):
     pdb_datasets = set(d[0:11] for d in os.listdir(input_models_dir))
     mtz_datasets = set(d[0:11] for d in os.listdir(mtz_dir))
 
+    mtz_style = mtz_style.rstrip("*").lstrip("*")
+    pdb_style = pdb_style.rstrip("*").lstrip("*")
+
     for dataset in pdb_datasets.intersection(mtz_datasets):
 
         if not os.path.exists(os.path.join(input_dir,dataset)):
             os.mkdir(os.path.join(input_dir,dataset))
 
-        os.symlink(os.path.join(mtz_dir, dataset + "_mrflagsref_idxs.mtz"),
+        os.symlink(os.path.join(mtz_dir, dataset + mtz_style),
                    os.path.join(input_dir, dataset,
-                                dataset + "_mrflagsref_idxs.mtz"))
+                                dataset + mtz_style))
 
-        os.symlink(os.path.join(input_models_dir, dataset + "-pandda-input.pdb"),
-                   os.path.join(input_dir, dataset, dataset + "-pandda-input.pdb"))
+        os.symlink(os.path.join(input_models_dir, dataset + pdb_style),
+                   os.path.join(input_dir, dataset, dataset + pdb_style))
+
+def symlink_pdb_mtz_only(input_dir,
+                         output_dir,
+                         mtz_style="_mrflagsref_idxs.mtz",
+                         pdb_style="-pandda-input.pdb"):
+    """Make symlinks to a new dataset folder for pdb and mtz files"""
+
+    datasets = set(d[0:11] for d in os.listdir(input_dir))
+
+    mtz_style = mtz_style.rstrip("*").lstrip("*")
+    pdb_style = pdb_style.rstrip("*").lstrip("*")
+
+    for dataset in datasets:
+
+        if not os.path.exists(os.path.join(output_dir, dataset)):
+            os.mkdir(os.path.join(output_dir, dataset))
+
+        os.symlink(os.path.join(input_dir, dataset + mtz_style),
+                   os.path.join(output_dir, dataset,
+                                dataset + mtz_style))
+
+        os.symlink(os.path.join(input_dir, dataset + pdb_style),
+                   os.path.join(output_dir, dataset, dataset + pdb_style))
+
 
 
 def merge_ptpt1b(ground_state_model_dir, bound_state_model_dir, merged_dir):
@@ -255,10 +289,14 @@ mtz_dir = "/hdlocal/home/enelson/PTP1B/mtzs"
 mtz = "/hdlocal/home/enelson/PTP1B/datasets/PTP1B-y0001/PTP1B-y0001_mrflagsref_idxs.mtz"
 pdb = "/hdlocal/home/enelson/PTP1B/datasets/PTP1B-y0001/PTP1B-y0001-pandda-input.pdb"
 
+symlink_pdb_mtz_only(input_dir="/hdlocal/home/enelson/PTP1B/datasets",
+                     output_dir="/hdlocal/home/enelson/PTP1B/datasets_reflections_filled",
+                     mtz_style="-pandda-input_map_coeffs.mtz",
+                     pdb_style="-pandda-input.pdb")
 
-prepare_all_missing_reflections(input_dir,
-                                mtz_style="*_mrflagsref_idxs.mtz",
-                                pdb_style="*-pandda-input.pdb")
+# prepare_all_missing_reflections(input_dir,
+#                                 mtz_style="*_mrflagsref_idxs.mtz",
+#                                 pdb_style="*-pandda-input.pdb")
 
 
 
