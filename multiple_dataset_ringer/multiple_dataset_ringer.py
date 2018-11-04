@@ -162,6 +162,12 @@ def run(params):
     logger.info("Produce a dictionary of Dataframes, "
                 "each containing ringer results for a dataset")
     all_results = process_all_with_ringer(params)
+
+    # convert to df works, but is large as csv ~300mb for 1600 datasets.
+    # may not be more use than seperate csvs.
+
+    #all_results_df = pd.concat(all_results, keys=all_results.keys())
+
     datasets = all_results.keys()
 
     logger.info("Pull out the first ringer results set as a reference")
@@ -205,7 +211,7 @@ def run(params):
                                           residue, len(ref_set)),
                                       out_dir=os.path.join(params.output.out_dir, residue))
         else:
-            logger.info("{} :Ringer plot for alreasy generated".format(residue))
+            logger.info("{} :Ringer plot for already generated".format(residue))
 
     # Generate correlations between datasets for each residue
     for residue, data in ref_set.iterrows():
