@@ -3,6 +3,46 @@ import glob
 import time
 from itertools import izip
 
+def run_all_phenix_map_to_structure_factors(input_dir,
+                                            pandda_processed_dir,
+                                            resolution_mtz_stlye="_mrflagsref_idxs.mtz",
+                                            ccp4_map_style="-aligned-map.ccp4",
+                                            output_mtz_style="_aligned_from_panddas_ccp4.mtz"):
+
+    for dataset in os.listdir(input_dir):
+
+        resolution_mtz = os.path.join(input_dir,
+                                      dataset,
+                                      dataset + resolution_mtz_stlye)
+        ccp4_file = os.path.join(pandda_processed_dir,
+                                 dataset,
+                                 dataset + ccp4_map_style)
+        output_mtz = os.path.join(input_dir,
+                                  dataset,
+                                  dataset + output_mtz_style)
+
+        run_phenix_map_to_structure_factors(resolution_mtz=resolution_mtz,
+                                            ccp4_file=ccp4_file,
+                                            output_mtz=output_mtz)
+
+def run_phenix_map_to_structure_factors(resolution_mtz,
+                                        ccp4_file,
+                                        output_mtz):
+
+    if os.path.exists(output_mtz):
+        return output_mtz
+
+    d_min = get_high_resolution_limit(resolution_mtz)
+    os.system("phenix.map_to_structure_factors {} "
+              "d_min={} output_file_name={}".format(ccp4_file,
+                                                    d_min,
+                                                    output_mtz))
+    if os.path.exists(output_mtz):
+        return output_mtz
+    else:
+        raise ValueError("phenix map to structure "
+                         "factors failed for {}".format(ccp4_file))
+
 def prepare_all_missing_reflections(input_dir,
                                     mtz_style="*.mtz",
                                     pdb_style="*.pdb"):
@@ -288,11 +328,23 @@ mtz_dir = "/hdlocal/home/enelson/PTP1B/mtzs"
 
 mtz = "/hdlocal/home/enelson/PTP1B/datasets/PTP1B-y0001/PTP1B-y0001_mrflagsref_idxs.mtz"
 pdb = "/hdlocal/home/enelson/PTP1B/datasets/PTP1B-y0001/PTP1B-y0001-pandda-input.pdb"
+ccp4_file = "/hdlocal/home/enelson/PTP1B/pandda_04_11_18_test2/processed_datasets/PTP1B-y0001/PTP1B-y0001-aligned-map.ccp4"
+output_mtz = os.path.join(os.path.dirname(mtz),"PTP1B-y0001_aligned_from_panddas_ccp4.mtz")
 
-symlink_pdb_mtz_only(input_dir="/hdlocal/home/enelson/PTP1B/datasets",
-                     output_dir="/hdlocal/home/enelson/PTP1B/datasets_reflections_filled",
-                     mtz_style="-pandda-input_map_coeffs.mtz",
-                     pdb_style="-pandda-input.pdb")
+run_all_phenix_map_to_structure_factors(input_dir="/hdlocal/home/enelson/PTP1B/datasets",
+                                        pandda_processed_dir="/hdlocal/home/enelson/PTP1B/pandda_04_11_18_test2/processed_datasets",
+                                        resolution_mtz_stlye="_mrflagsref_idxs.mtz",
+                                        ccp4_map_style="-aligned-map.ccp4",
+                                        output_mtz_style="_aligned_from_panddas_ccp4.mtz")
+
+# run_phenix_map_to_structure_factors(resolution_mtz=mtz,
+#                                     ccp4_file=ccp4_file,
+#                                     output_mtz=output_mtz)
+
+# symlink_pdb_mtz_only(input_dir="/hdlocal/home/enelson/PTP1B/datasets",
+#                      output_dir="/hdlocal/home/enelson/PTP1B/datasets_reflections_filled",
+#                      mtz_style="-pandda-input_map_coeffs.mtz",
+#                      pdb_style="-pandda-input.pdb")
 
 # prepare_all_missing_reflections(input_dir,
 #                                 mtz_style="*_mrflagsref_idxs.mtz",
