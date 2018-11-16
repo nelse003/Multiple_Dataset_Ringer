@@ -154,6 +154,9 @@ def process_all_with_ringer(params):
                                          qsub_number=qsub_number,
                                          tmp_dir=params.output.tmp_dir)
     if params.settings.qsub:
+
+        if not os.path.exists(params.output.tmp_dir): os.mkdir(params.output.tmp_dir)
+
         with open(os.path.join(params.output.tmp_dir,
                                "ringer_master.sh")) as ringer_master:
             ringer_master.write("# PBS -joe -N ringer_master")
@@ -212,7 +215,6 @@ def process_with_ringer(pdb, mtz, angle_sampling, output_dir=None,
 
     # Check/create output directory
     if not os.path.exists(output_dir): os.mkdir(output_dir)
-    if not os.path.exists(tmp_dir): os.mkdir(tmp_dir)
 
     output_csv =os.path.join(output_dir,output_base + '.csv')
 
