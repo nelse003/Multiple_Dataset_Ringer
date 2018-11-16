@@ -135,13 +135,13 @@ def process_all_with_ringer(params):
         pdb = rename_chain_if_differs(pdb, ref_pdb)
 
         if not os.path.exists(pdb):
-            print('Skipping dir: No PDB Files found in {} matching {}'.format(
-                dataset_dir, params.input.pdb_style))
+            print('Skipping dir: No PDB Files found in {} matching {}: {}'.format(
+                dataset_dir, params.input.pdb_style, pdb))
             continue
 
         if not os.path.exists(mtz):
-            print('Skipping dir: No MTZ Files found in {} matching {}'.format(
-                dataset_dir, params.input.mtz_style))
+            print('Skipping dir: No MTZ Files found in {} matching {}: {}'.format(
+                dataset_dir, params.input.mtz_style, mtz))
             continue
 
         # Process dataset with ringer and convert results to DataFrame
