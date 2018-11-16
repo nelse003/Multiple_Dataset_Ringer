@@ -166,6 +166,7 @@ def process_all_with_ringer(params):
             str(qsub_number+1), 100, os.path.join(params.output.tmp_dir,
                                                  "ringer_master.sh")))
 
+    exit()
     for dataset_dir in params.input.dir:
         ringer_results = pd.DataFrame.from_csv(ringer_csv, header=None)
         ringer_results = rename_residue_labels(ringer_results)
