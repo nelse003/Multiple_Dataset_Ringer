@@ -162,7 +162,9 @@ def process_all_with_ringer(params):
             ringer_master.write("# PBS -joe -N ringer_master")
             ringer_master.write("./ringer_$SGE_TASK_ID.sh")
 
-        os.system("qsub -t 0:{0!s} -tc {1!s} ringer_master.sh".format(str(qsub_number+1),100))
+        os.system("qsub -t 0:{0!s} -tc {1!s} {}".format(
+            str(qsub_number+1), 100, os.path.join(params.output.tmp_dir,
+                                                 "ringer_master.sh")))
 
     for dataset_dir in params.input.dir:
         ringer_results = pd.DataFrame.from_csv(ringer_csv, header=None)
