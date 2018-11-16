@@ -162,7 +162,7 @@ def process_all_with_ringer(params):
             ringer_master.write("# PBS -joe -N ringer_master")
             ringer_master.write("./ringer_$SGE_TASK_ID.sh")
 
-        os.system("qsub -t 0:{0!s} -tc {1!s} {}".format(
+        os.system("qsub -t 0:{!s} -tc {!s} {}".format(
             str(qsub_number+1), 100, os.path.join(params.output.tmp_dir,
                                                  "ringer_master.sh")))
 
