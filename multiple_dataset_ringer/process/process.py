@@ -153,6 +153,7 @@ def process_all_with_ringer(params):
                                          qsub=params.settings.qsub,
                                          qsub_number=qsub_number,
                                          tmp_dir=params.output.tmp_dir)
+
     if params.settings.qsub:
 
         if not os.path.exists(params.output.tmp_dir): os.mkdir(params.output.tmp_dir)
@@ -163,7 +164,7 @@ def process_all_with_ringer(params):
             ringer_master.write("./ringer_$SGE_TASK_ID.sh")
 
         os.system("qsub -t 1:{!s} -tc {!s} {}".format(
-            str(qsub_number+2), 100, os.path.join(params.output.tmp_dir,
+            str(len(params.input.dir)+2), 100, os.path.join(params.output.tmp_dir,
                                                  "ringer_master.sh")))
 
     exit()
