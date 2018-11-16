@@ -252,7 +252,9 @@ def prepare_datasets_folder(input_models_dir,
 def symlink_pdb_mtz_only(input_dir,
                          output_dir,
                          mtz_style="_mrflagsref_idxs.mtz",
-                         pdb_style="-pandda-input.pdb"):
+                         pdb_style="-pandda-input.pdb",
+                         link_pdb=True,
+                         link_mtz=True):
     """Make symlinks to a new dataset folder for pdb and mtz files"""
 
     datasets = set(d[0:11] for d in os.listdir(input_dir))
@@ -265,12 +267,13 @@ def symlink_pdb_mtz_only(input_dir,
         if not os.path.exists(os.path.join(output_dir, dataset)):
             os.makedirs(os.path.join(output_dir, dataset))
 
-        os.symlink(os.path.join(input_dir, dataset, dataset + mtz_style),
-                   os.path.join(output_dir, dataset,
-                                dataset + mtz_style))
-
-        os.symlink(os.path.join(input_dir, dataset, dataset + pdb_style),
-                   os.path.join(output_dir, dataset, dataset + pdb_style))
+        if link_mtz:
+            os.symlink(os.path.join(input_dir, dataset, dataset + mtz_style),
+                       os.path.join(output_dir, dataset,
+                                    dataset + mtz_style))
+        if link_pdb:
+            os.symlink(os.path.join(input_dir, dataset, dataset + pdb_style),
+                       os.path.join(output_dir, dataset, dataset + pdb_style))
 
 
 
@@ -312,7 +315,7 @@ def merge_ptpt1b(ground_state_model_dir, bound_state_model_dir, merged_dir):
 # merged_dir = "/media/nelse003/Data/ringer_test_set/PTP1B/merged_models"
 
 #input_dir ="/media/nelse003/Data/ringer_test_set/PTP1B/datasets"
-input_dir = "/hdlocal/home/enelson/PTP1B/datasets"
+input_dir = "/hdlocal/home/enelson/PTP1B/datasets_aligned"
 
 if not os.path.exists(input_dir):
     os.mkdir(input_dir)
@@ -331,20 +334,21 @@ pdb = "/hdlocal/home/enelson/PTP1B/datasets/PTP1B-y0001/PTP1B-y0001-pandda-input
 ccp4_file = "/hdlocal/home/enelson/PTP1B/pandda_04_11_18_test2/processed_datasets/PTP1B-y0001/PTP1B-y0001-aligned-map.ccp4"
 output_mtz = os.path.join(os.path.dirname(mtz),"PTP1B-y0001_aligned_from_panddas_ccp4.mtz")
 
-run_all_phenix_map_to_structure_factors(input_dir="/hdlocal/home/enelson/PTP1B/datasets",
-                                        pandda_processed_dir="/hdlocal/home/enelson/PTP1B/pandda_04_11_18_test2/processed_datasets",
-                                        resolution_mtz_stlye="_mrflagsref_idxs.mtz",
-                                        ccp4_map_style="-aligned-map.ccp4",
-                                        output_mtz_style="_aligned_from_panddas_ccp4.mtz")
+# run_all_phenix_map_to_structure_factors(input_dir="/hdlocal/home/enelson/PTP1B/datasets",
+#                                         pandda_processed_dir="/hdlocal/home/enelson/PTP1B/pandda_04_11_18_test2/processed_datasets",
+#                                         resolution_mtz_stlye="_mrflagsref_idxs.mtz",
+#                                         ccp4_map_style="-aligned-map.ccp4",
+#                                         output_mtz_style="_aligned_from_panddas_ccp4.mtz")
 
 # run_phenix_map_to_structure_factors(resolution_mtz=mtz,
 #                                     ccp4_file=ccp4_file,
 #                                     output_mtz=output_mtz)
 
-# symlink_pdb_mtz_only(input_dir="/hdlocal/home/enelson/PTP1B/datasets",
-#                      output_dir="/hdlocal/home/enelson/PTP1B/datasets_reflections_filled",
-#                      mtz_style="-pandda-input_map_coeffs.mtz",
-#                      pdb_style="-pandda-input.pdb")
+symlink_pdb_mtz_only(input_dir="/hdlocal/home/enelson/PTP1B/datasets",
+                     output_dir="/hdlocal/home/enelson/PTP1B/datasets_aligned",
+                     mtz_style="-pandda-input_map_coeffs.mtz",
+                     pdb_style="-pandda-input.pdb",
+                     link_pdb=False)
 
 # prepare_all_missing_reflections(input_dir,
 #                                 mtz_style="*_mrflagsref_idxs.mtz",

@@ -110,7 +110,7 @@ def process_all_with_ringer(params):
     # Generate ringer results & resolution information
     ref_pdb = None
 
-    for dataset_dir in params.input.dir:
+    for qsub_number, dataset_dir in enumerate(params.input.dir):
 
         # Label the dataset by the directory name
         dataset_label = os.path.basename(dataset_dir.rstrip('/'))
@@ -149,8 +149,19 @@ def process_all_with_ringer(params):
                                          mtz=mtz,
                                          angle_sampling=params.settings.angle_sampling,
                                          output_dir=dataset_dir,
-                                         column_labels=params.input.column_labels)
+                                         column_labels=params.input.column_labels,
+                                         qsub=params.settings.qsub,
+                                         qsub_number=qsub_number,
+                                         tmp_dir=params.output.tmp_dir)
+    if qsub:
+        with open(os.path.join(params.output.tmp_dir,
+                               "ringer_master.sh")) as ringer_master:
+            ringer_master.write("# PBS -joe -N ringer_master")
+            ringer_master.write("./ringer_$SGE_TASK_ID.sh")
 
+        os.system("qsub -t 0:{0!s} -tc {1!s} ringer_master.sh".format(str(qsub_number+1),100))
+
+    for dataset_dir in params.input.dir:
         ringer_results = pd.DataFrame.from_csv(ringer_csv, header=None)
         ringer_results = rename_residue_labels(ringer_results)
         all_results[dataset_label] = ringer_results
@@ -158,7 +169,8 @@ def process_all_with_ringer(params):
     return all_results
 
 def process_with_ringer(pdb, mtz, angle_sampling, output_dir=None,
-                        output_base=None, column_labels="FWT,PHWT"):
+                        output_base=None, column_labels="FWT,PHWT",
+                        qsub=False, qsub_number=None, tmp_dir=None):
 
     """Analyse a pdb-mtz pair with mmtbx.ringer
 
@@ -177,6 +189,13 @@ def process_with_ringer(pdb, mtz, angle_sampling, output_dir=None,
     column_labels: str
         column labels used in mmtbx.ringer, these columns will be 
         extracted from mtz file a supplied path
+    qsub: bool
+        flag to indicate use of qsub
+    qsub_number: int
+        number for the qsub run
+    tmp_dir: str
+        path of temporary directory
+        
 
     Returns
     -----------
@@ -193,6 +212,7 @@ def process_with_ringer(pdb, mtz, angle_sampling, output_dir=None,
 
     # Check/create output directory
     if not os.path.exists(output_dir): os.mkdir(output_dir)
+    if not os.path.exists(tmp_dir): os.mkdir(tmp_dir)
 
     output_csv =os.path.join(output_dir,output_base + '.csv')
 
@@ -211,11 +231,7 @@ def process_with_ringer(pdb, mtz, angle_sampling, output_dir=None,
             f000_params.input.pdb = pdb
             f000_params.input.mtz = mtz
             f000_params.options.column.label = column_labels
-
-            print(f000_params)
-
             insert_f000(f000_params)
-
 
         # Initialise and populate command object
         ringer = CommandManager(program='mmtbx.ringer')
@@ -228,12 +244,17 @@ def process_with_ringer(pdb, mtz, angle_sampling, output_dir=None,
 
         # Print and run
         ringer.print_settings()
-        ringer.run()
-        # Write log
-        ringer.write_output(os.path.join(output_dir, output_base+'.log'))
+        if qsub:
+            with open(os.path.join(tmp_dir, "ringer_{}.sh".format(qsub_number)),'w') as qsub_file:
+                qsub_file.write("#!/bin/bash\n")
+                qsub_file.write("module load phenix\n")
+                qsub_file.write(ringer.as_command() +'\n')
 
-    # Check the output csv file exists
-    assert os.path.exists(output_csv), 'Ringer output CSV does not exist: {}'.format(output_csv)
+        else:
+            ringer.run()
+            ringer.write_output(os.path.join(output_dir, output_base+'.log'))
+            assert os.path.exists(output_csv), \
+                'Ringer output CSV does not exist: {}'.format(output_csv)
 
     return output_csv
 

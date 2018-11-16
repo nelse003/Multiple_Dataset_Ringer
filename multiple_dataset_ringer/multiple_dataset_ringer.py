@@ -74,6 +74,9 @@ output {
     out_dir = "output"
         .type = str
         .multiple = False
+    tmp_dir = "tmp"
+        .type = str
+        .multiple = False
 }
 settings {
     # XXX mmtbx.ringer can only take this an integer, >1 XXX#
@@ -96,7 +99,9 @@ settings {
     sample_only_ref_pdb = None
         .type = str
         .help = Run all ringer analyses against a single pdb structure
-    
+    qsub = False
+        .type = bool
+        .help = flag to run (ringer) with qsub
 }
 """)
 

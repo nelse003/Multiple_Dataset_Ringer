@@ -6,7 +6,8 @@ from giant.dataset import CrystallographicModel
 
 def align_ref_to_every_model(input_folder,
                              output_folder,
-                             ref_model_path=None):
+                             ref_model_path=None,
+                             folder_selection=None):
 
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
@@ -27,6 +28,10 @@ def align_ref_to_every_model(input_folder,
     failures=[]
     # Loop over all models
     for dataset_folder in dataset_folders:
+
+        if folder_selection is not None:
+            if not os.path.basename(dataset_folder) in folder_selection:
+                continue
 
         print(os.path.basename(dataset_folder),
               os.path.basename(os.path.dirname(ref_model_path)))
@@ -55,11 +60,11 @@ def align_ref_to_every_model(input_folder,
         local_ref_model = copy.deepcopy(ref_model)
 
         # Align reference model to current model
-        try:
-            local_ref_model.align_to(model.hierarchy)
-        except AssertionError:
-            failures.append(os.path.basename(dataset_folder))
-            continue
+        local_ref_model.align_to(model.hierarchy,
+                                 require_hierarchies_identical=False)
+            #
+            # failures.append(os.path.basename(dataset_folder))
+            # continue
         # Write pdb file of reference data moved
         local_ref_model.hierarchy.write_pdb_file(
             file_name=output_file_name,
@@ -69,11 +74,10 @@ def align_ref_to_every_model(input_folder,
 
 ref_model_path = "/hdlocal/home/enelson/PTP1B/datasets/PTP1B-y0001/PTP1B-y0001-pandda-input.pdb"
 
-align_ref_to_every_model(input_folder="/hdlocal/home/enelson/PTP1B/datasets",
-    output_folder="/hdlocal/home/enelson/PTP1B/datasets_aligned",
-    ref_model_path=ref_model_path)
+# Initial failures when require_hierarchies_identical
+# was defaulting to True
 
-#failures=['PTP1B-y0112', 'PTP1B-y1904', 'PTP1B-y1608', 'PTP1B-y1646', 'PTP1B-y1320',
+# failures=['PTP1B-y0112', 'PTP1B-y1904', 'PTP1B-y1608', 'PTP1B-y1646', 'PTP1B-y1320',
 #          'PTP1B-y1781', 'PTP1B-y1548', 'PTP1B-y1486', 'PTP1B-y0426', 'PTP1B-y1043',
 #          'PTP1B-y0572', 'PTP1B-y1594', 'PTP1B-y1787', 'PTP1B-y1159', 'PTP1B-y0884',
 #          'PTP1B-y0654', 'PTP1B-y0117', 'PTP1B-y0211', 'PTP1B-y0725', 'PTP1B-y1525',
@@ -98,5 +102,8 @@ align_ref_to_every_model(input_folder="/hdlocal/home/enelson/PTP1B/datasets",
 #          'PTP1B-y0375', 'PTP1B-y1257', 'PTP1B-y1943', 'PTP1B-y1011', 'PTP1B-y1957',
 #          'PTP1B-y1612', 'PTP1B-y1763']
 
+align_ref_to_every_model(input_folder="/hdlocal/home/enelson/PTP1B/datasets",
+    output_folder="/hdlocal/home/enelson/PTP1B/datasets_aligned",
+    ref_model_path=ref_model_path)
 
 
