@@ -110,6 +110,9 @@ def process_all_with_ringer(params):
     # Generate ringer results & resolution information
     ref_pdb = None
 
+    print(params.input.dir)
+    exit()
+
     for qsub_number, dataset_dir in enumerate(params.input.dir):
 
         # Label the dataset by the directory name
