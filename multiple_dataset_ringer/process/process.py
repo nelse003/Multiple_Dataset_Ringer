@@ -153,7 +153,7 @@ def process_all_with_ringer(params):
                                          qsub=params.settings.qsub,
                                          qsub_number=qsub_number,
                                          tmp_dir=params.output.tmp_dir)
-    if qsub:
+    if params.settings.qsub:
         with open(os.path.join(params.output.tmp_dir,
                                "ringer_master.sh")) as ringer_master:
             ringer_master.write("# PBS -joe -N ringer_master")
