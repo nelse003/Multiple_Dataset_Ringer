@@ -158,7 +158,7 @@ def process_all_with_ringer(params):
         if not os.path.exists(params.output.tmp_dir): os.mkdir(params.output.tmp_dir)
 
         with open(os.path.join(params.output.tmp_dir,
-                               "ringer_master.sh")) as ringer_master:
+                               "ringer_master.sh"),'w') as ringer_master:
             ringer_master.write("# PBS -joe -N ringer_master")
             ringer_master.write("./ringer_$SGE_TASK_ID.sh")
 
