@@ -162,8 +162,8 @@ def process_all_with_ringer(params):
             ringer_master.write("# PBS -joe -N ringer_master")
             ringer_master.write("./ringer_$SGE_TASK_ID.sh")
 
-        os.system("qsub -t 0:{!s} -tc {!s} {}".format(
-            str(qsub_number+1), 100, os.path.join(params.output.tmp_dir,
+        os.system("qsub -t 1:{!s} -tc {!s} {}".format(
+            str(qsub_number+2), 100, os.path.join(params.output.tmp_dir,
                                                  "ringer_master.sh")))
 
     exit()
@@ -250,7 +250,7 @@ def process_with_ringer(pdb, mtz, angle_sampling, output_dir=None,
         # Print and run
         ringer.print_settings()
         if qsub:
-            with open(os.path.join(tmp_dir, "ringer_{}.sh".format(qsub_number)),'w') as qsub_file:
+            with open(os.path.join(tmp_dir, "ringer_{}.sh".format(qsub_number+1)),'w') as qsub_file:
                 qsub_file.write("#!/bin/bash\n")
                 qsub_file.write("module load phenix\n")
                 qsub_file.write(ringer.as_command() +'\n')
