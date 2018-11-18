@@ -167,8 +167,13 @@ def process_all_with_ringer(params):
             str(len(params.input.dir)+2), 100, os.path.join(params.output.tmp_dir,
                                                  "ringer_master.sh")))
 
-    exit()
     for dataset_dir in params.input.dir:
+
+        pdb = glob.glob(os.path.join(dataset_dir, params.input.pdb_style))
+        pdb=pdb[0]
+        dataset_label = os.path.basename(dataset_dir.rstrip('/'))
+        output_base = os.path.splitext(os.path.basename(pdb))[0]
+        ringer_csv = os.path.join(dataset_dir, output_base + '.csv')
         ringer_results = pd.DataFrame.from_csv(ringer_csv, header=None)
         ringer_results = rename_residue_labels(ringer_results)
         all_results[dataset_label] = ringer_results

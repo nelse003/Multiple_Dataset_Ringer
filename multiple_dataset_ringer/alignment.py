@@ -68,9 +68,8 @@ def align_ref_to_every_model(input_folder,
         # Write pdb file of reference data moved
         local_ref_model.hierarchy.write_pdb_file(
             file_name=output_file_name,
-            crystal_symmetry=local_ref_model.crystal_symmetry)
+            crystal_symmetry=model.crystal_symmetry)
 
-    print(failures)
 
 ref_model_path = "/hdlocal/home/enelson/PTP1B/datasets/PTP1B-y0001/PTP1B-y0001-pandda-input.pdb"
 
