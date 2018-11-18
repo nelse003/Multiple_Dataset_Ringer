@@ -217,7 +217,7 @@ def run(params):
                                       out_dir=os.path.join(params.output.out_dir, residue))
         else:
             logger.info("{} :Ringer plot for already generated".format(residue))
-
+    exit()
     # Generate correlations between datasets for each residue
     for residue, data in ref_set.iterrows():
 
@@ -238,7 +238,6 @@ def run(params):
         else:
             logger.info('{}: Correlation CSV already generated,'.format(residue))
 
-    exit()
 
     ##########################################################################
     # Generate Average Ringer Plots
