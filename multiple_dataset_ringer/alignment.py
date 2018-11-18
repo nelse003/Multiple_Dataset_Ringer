@@ -60,16 +60,28 @@ def align_ref_to_every_model(input_folder,
         local_ref_model = copy.deepcopy(ref_model)
 
         # Align reference model to current model
-        local_ref_model.align_to(model.hierarchy,
+        alignment = local_ref_model.align_to(model.hierarchy,
                                  require_hierarchies_identical=False)
-            #
-            # failures.append(os.path.basename(dataset_folder))
-            # continue
+
+        local_ref_model.hierarchy.atoms().set_xyz(
+             alignment.nat2ref(
+                 coordinates=ref_model.hierarchy.atoms().extract_xyz()))
+
         # Write pdb file of reference data moved
         local_ref_model.hierarchy.write_pdb_file(
             file_name=output_file_name,
             crystal_symmetry=model.crystal_symmetry)
 
+        # print(ref_model.hierarchy.atoms().extract_xyz()[0])
+        # print(local_ref_model.hierarchy.atoms().extract_xyz()[0])
+        # print(model.hierarchy.atoms().extract_xyz()[0])
+        # print("_______________")
+        # print(ref_model.hierarchy.atoms().extract_xyz()[5])
+        # print(local_ref_model.hierarchy.atoms().extract_xyz()[5])
+        # print(model.hierarchy.atoms().extract_xyz()[5])
+
+        if os.path.basename(dataset_folder) == 'PTP1B-y1012':
+            exit()
 
 ref_model_path = "/hdlocal/home/enelson/PTP1B/datasets/PTP1B-y0001/PTP1B-y0001-pandda-input.pdb"
 
