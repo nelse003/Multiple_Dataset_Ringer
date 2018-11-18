@@ -80,9 +80,6 @@ def align_ref_to_every_model(input_folder,
         # print(local_ref_model.hierarchy.atoms().extract_xyz()[5])
         # print(model.hierarchy.atoms().extract_xyz()[5])
 
-        if os.path.basename(dataset_folder) == 'PTP1B-y1012':
-            exit()
-
 ref_model_path = "/hdlocal/home/enelson/PTP1B/datasets/PTP1B-y0001/PTP1B-y0001-pandda-input.pdb"
 
 # Initial failures when require_hierarchies_identical
