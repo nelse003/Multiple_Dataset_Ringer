@@ -265,8 +265,11 @@ def run(params):
     #################################
     # Clustering for correlation
     #################################
-    correlation_csv_end = '_from {} datasets-correlation-ringer.csv'.format(len(datasets))
-    min_corr, max_corr = find_pairwise_range(correlation_csv_end, ref_set, params.output.out_dir)
+    correlation_csv_end = '_from {} datasets-correlation-ringer.csv'.format(
+        len(datasets))
+    min_corr, max_corr = find_pairwise_range(correlation_csv_end,
+                                             ref_set,
+                                             params.output.out_dir)
 
     hier_agg_cluster(correlation_csv_end,
                      datasets=datasets,

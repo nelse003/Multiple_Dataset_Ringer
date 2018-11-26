@@ -170,6 +170,8 @@ def process_all_with_ringer(params):
     for dataset_dir in params.input.dir:
 
         pdb = glob.glob(os.path.join(dataset_dir, params.input.pdb_style))
+        print(dataset_dir)
+        print(pdb)
         pdb=pdb[0]
         dataset_label = os.path.basename(dataset_dir.rstrip('/'))
         output_base = os.path.splitext(os.path.basename(pdb))[0]
