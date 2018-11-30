@@ -92,13 +92,14 @@ settings {
         .type = str
         .help = Name of electron density map to be analysed with ringer
         
-    angle_type = 'chi1'
-        .type = str
+    angle_type = 'chi1,chi2,chi3'
         .help = Chi angle to be analysed across multiple datasets
-        
+        .type = str
+
     sample_only_ref_pdb = None
         .type = str
         .help = Run all ringer analyses against a single pdb structure
+        
     qsub = False
         .type = bool
         .help = flag to run (ringer) with qsub
@@ -166,6 +167,7 @@ def run(params):
 
     logger.info("Produce a dictionary of Dataframes, "
                 "each containing ringer results for a dataset")
+
     all_results = process_all_with_ringer(params)
 
     # convert to df works, but is large as csv ~300mb for 1600 datasets.
@@ -176,48 +178,64 @@ def run(params):
     datasets = all_results.keys()
 
     logger.info("Pull out the first ringer results set as a reference")
-    ref_set = all_results.values()[0]
 
-    logger.info("Choose a map_type: {}\n"
-                "angle_type: {} \n"
-                " by reducing reference set".format(params.settings.map_type,
-                                                    params.settings.angle_type))
+    angle_types = params.settings.angle_type.split(',')
 
-    ref_set = ref_set.loc[(ref_set[1] == params.settings.map_type)]
-    ref_set = ref_set.loc[(ref_set[2] == params.settings.angle_type)]
+    for angle_type in angle_types:
 
-    logger.info("Interpolating all ringer results to be on same angle range")
-    interpolate_all_ringer_results(ref_set, all_results, params)
+        logger.info("Choose a map_type: {}\n"
+                    "angle_type: {} \n"
+                    " by reducing reference set".format(params.settings.map_type,
+                                                        angle_type))
 
-    interpolate_base_csv = \
-        '_{}_Datasets_{}_{}-ringer.csv'.format(len(datasets),
-                                               params.settings.map_type,
-                                               params.settings.angle_type)
 
-    logger.info("Producing ringer line plots for each residue: showing all datasets")
-    for residue, data in ref_set.iterrows():
+        ref_set = all_results.values()[0]
+        print(ref_set)
+        ref_set = ref_set.loc[(ref_set[1] == params.settings.map_type)]
+        ref_set = ref_set.loc[(ref_set[2] == angle_type)]
 
-        interpolate_csv = residue + interpolate_base_csv
+        print(ref_set)
 
-        single_residue_multiple_datasets = pd.read_csv(
-            os.path.join(params.output.out_dir,
-                         residue,
-                         interpolate_csv),
-            index_col=0)
+        interpolate_base_csv = \
+            '_{}_Datasets_{}_{}-ringer.csv'.format(len(datasets),
+                                                   params.settings.map_type,
+                                                   angle_type)
 
-        if not os.path.exists(os.path.join(params.output.out_dir,
-                                           residue,
-                                           'all-{}-{}-dataset.png'.format(
-                                               residue, len(ref_set)))):
+        logger.info("Interpolating all ringer results to be on same angle range")
+        interpolate_all_ringer_results(ref_set,
+                                       all_results,
+                                       angle_type,
+                                       interpolate_base_csv,
+                                       params)
 
-            multiple_line_plot_ringer(results_df=single_residue_multiple_datasets,
-                                      title=residue,
-                                      filename='all-{}-{}-dataset.png'.format(
-                                          residue, len(ref_set)),
-                                      out_dir=os.path.join(params.output.out_dir, residue))
-        else:
-            logger.info("{} :Ringer plot for already generated".format(residue))
+        logger.info("Producing ringer line plots for each residue: showing all datasets")
+        for residue, data in ref_set.iterrows():
+
+            interpolate_csv = residue + interpolate_base_csv
+
+            single_residue_multiple_datasets = pd.read_csv(
+                os.path.join(params.output.out_dir,
+                             residue,
+                             interpolate_csv),
+                index_col=0)
+
+            plot_filename = 'all-{}-{}-{}-dataset.png'.format(residue,
+                                                              angle_type,
+                                                              len(ref_set))
+
+            if not os.path.exists(os.path.join(params.output.out_dir,
+                                               residue,
+                                               plot_filename)):
+
+                multiple_line_plot_ringer(results_df=single_residue_multiple_datasets,
+                                          title=residue,
+                                          filename=plot_filename,
+                                          out_dir=os.path.join(params.output.out_dir, residue))
+            else:
+                logger.info("{} :Ringer plot for already generated".format(residue))
+
     exit()
+
     # Generate correlations between datasets for each residue
     for residue, data in ref_set.iterrows():
 
@@ -253,7 +271,6 @@ def run(params):
                              average_type=average_type)
     else:
         logger.info('Average Ringer plots already generated')
-
 
     # Blue line plots
     # average_ringer_plots(base_csv=interpolate_base_csv, ref_set=ref_set,

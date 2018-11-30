@@ -1,29 +1,35 @@
-#!/usr/bin/env pandda.python
-
-###############################################################################
-# Packages
-##############################################################################
-# System tasks
 import os
 # Panda Dataframes
 import pandas as pd
 import numpy as np
 import logging
 
-from plotting.plots import multiple_line_plot_ringer
-
 logger = logging.getLogger(__name__)
 
 def interpolate_all_ringer_results(ref_set,
                                    all_results,
+                                   angle_type,
+                                   interpolate_base_csv,
                                    params):
 
+    """Put all Ringer results on a common angle scale by interpolation
+    
+    Parameters
+    -------------
+    ref_set: pandas.DataFrame
+        A dataframe conatining the reference dataset.
+    all_results: dict
+        Dictionary of dataframes containing ringer results, 
+        labelled per dataset 
+    params:
+        python object derived from master phil file.
+        contains the 
+        
+    Returns
+    ----------
+    None
+    """
     datasets = all_results.keys()
-    # Name for storage of interpolated results (without residue)
-    interpolate_base_csv = \
-        '_{}_Datasets_{}_{}-ringer.csv'.format(len(datasets),
-                                               params.settings.map_type,
-                                               params.settings.angle_type)
 
     # Iterate through the residues
     for residue, data in ref_set.iterrows():
@@ -37,8 +43,10 @@ def interpolate_all_ringer_results(ref_set,
             # Output filename for interpolated data
             # (Used to check existence of output)
         interpolate_csv = residue + interpolate_base_csv
-
-        if not os.path.exists(os.path.join(params.output.out_dir, residue, interpolate_csv)):
+        print(interpolate_csv)
+        if not os.path.exists(os.path.join(params.output.out_dir,
+                                           residue,
+                                           interpolate_csv)):
 
             # Iterate through the datasets
             for dataset_label, dataset_results in all_results.iteritems():
@@ -50,12 +58,13 @@ def interpolate_all_ringer_results(ref_set,
                     continue
 
                 sorted_angles, sorted_map_values = \
-                    normalise_and_sort_ringer_results(
-                    current_dataset_results, params=params)
-
+                    normalise_and_sort_ringer_results(current_dataset_results,
+                                                      angle_type,
+                                                      params=params)
                 interpolated_angles, \
                 interpolated_map_values = linear_interpolate_ringer_results(
-                    sorted_angles, sorted_map_values,
+                    sorted_angles,
+                    sorted_map_values,
                     angle_sampling=params.settings.angle_sampling)
 
                 # Store these in a list
@@ -82,18 +91,21 @@ def interpolate_all_ringer_results(ref_set,
                 '{}: Interpolated CSVs already generated,'.format(residue))
 
 
-def normalise_and_sort_ringer_results(current_dataset_results, params):
+def normalise_and_sort_ringer_results(current_dataset_results, angle_type, params):
     """Sorts ringer results by angle"""
 
     # Extract from current residue in dataset
     residue = current_dataset_results.index[0]
-    start_ang  = current_dataset_results.values[0,2]
-    ang_rel = params.settings.angle_sampling * current_dataset_results.columns.values[3:]-3
-    map_values = current_dataset_results.values[0,3:]
+
+    for ang_dataset in current_dataset_results.iterrows():
+        if ang_dataset[1][2] == angle_type:
+            start_ang  = ang_dataset[1][3]
+            map_values = ang_dataset[1].values[3:]
+    ang_rel = params.settings.angle_sampling * (current_dataset_results.columns.values[3:]-3)
+
 
     logger.debug("Start Angle: {}".format(start_ang))
     logger.debug("Angle Relative: {}".format(start_ang))
-
     logger.debug('Showing data for {}'.format(residue))
 
     # Set angles
