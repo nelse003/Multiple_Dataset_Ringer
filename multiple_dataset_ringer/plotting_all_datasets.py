@@ -1,8 +1,8 @@
 import sys
-from multiple_dataset_ringer import master_phil
-from multiple_dataset_ringer import blank_arg_prepend
+from multiple_dataset_ringer.multiple_dataset_phil import blank_arg_prepend, master_phil
 from process.process import process_all_with_ringer
 import pickle
+
 
 def run(params):
     """
@@ -21,9 +21,18 @@ def run(params):
     """
 
     all_results = process_all_with_ringer(params)
-    pickle.dump(all_results,"/hdlocal/home/enelson/PTP1B/datasets_single_pdb/all_results.pickle")
+    pickle.dump(
+        all_results,
+        "/hdlocal/home/enelson/PTP1B/datasets_single_pdb/all_results.pickle",
+    )
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     from giant.jiffies import run_default
 
-    run_default(run=run, master_phil=master_phil, args=sys.argv[1:], blank_arg_prepend=blank_arg_prepend)
+    run_default(
+        run=run,
+        master_phil=master_phil,
+        args=sys.argv[1:],
+        blank_arg_prepend=blank_arg_prepend,
+    )

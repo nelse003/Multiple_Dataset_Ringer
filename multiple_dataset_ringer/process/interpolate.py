@@ -5,25 +5,22 @@
 ##############################################################################
 # System tasks
 import os
+
 # Panda Dataframes
 import pandas as pd
 import numpy as np
 import logging
 
-from plotting.plots import multiple_line_plot_ringer
-
 logger = logging.getLogger(__name__)
 
-def interpolate_all_ringer_results(ref_set,
-                                   all_results,
-                                   params):
+
+def interpolate_all_ringer_results(ref_set, all_results, params):
 
     datasets = all_results.keys()
     # Name for storage of interpolated results (without residue)
-    interpolate_base_csv = \
-        '_{}_Datasets_{}_{}-ringer.csv'.format(len(datasets),
-                                               params.settings.map_type,
-                                               params.settings.angle_type)
+    interpolate_base_csv = "_{}_Datasets_{}_{}-ringer.csv".format(
+        len(datasets), params.settings.map_type, params.settings.angle_type
+    )
 
     # Iterate through the residues
     for residue, data in ref_set.iterrows():
@@ -38,48 +35,53 @@ def interpolate_all_ringer_results(ref_set,
             # (Used to check existence of output)
         interpolate_csv = residue + interpolate_base_csv
 
-        if not os.path.exists(os.path.join(params.output.out_dir, residue, interpolate_csv)):
+        if not os.path.exists(
+            os.path.join(params.output.out_dir, residue, interpolate_csv)
+        ):
 
             # Iterate through the datasets
             for dataset_label, dataset_results in all_results.iteritems():
 
-                current_dataset_results = dataset_results.loc[(
-                    dataset_results.index == residue)]
+                current_dataset_results = dataset_results.loc[
+                    (dataset_results.index == residue)
+                ]
 
                 if current_dataset_results.empty:
                     continue
 
-                sorted_angles, sorted_map_values = \
-                    normalise_and_sort_ringer_results(
-                    current_dataset_results, params=params)
+                sorted_angles, sorted_map_values = normalise_and_sort_ringer_results(
+                    current_dataset_results, params=params
+                )
 
-                interpolated_angles, \
-                interpolated_map_values = linear_interpolate_ringer_results(
-                    sorted_angles, sorted_map_values,
-                    angle_sampling=params.settings.angle_sampling)
+                interpolated_angles, interpolated_map_values = linear_interpolate_ringer_results(
+                    sorted_angles,
+                    sorted_map_values,
+                    angle_sampling=params.settings.angle_sampling,
+                )
 
                 # Store these in a list
-                residue_data_list.append((interpolated_angles,
-                                          interpolated_map_values))
+                residue_data_list.append((interpolated_angles, interpolated_map_values))
 
                 # If it doesn't exist: Create dataframe to store results from
                 # one residue, across multiple datasets
-                if'single_residue_multiple_datasets' not in locals():
+                if "single_residue_multiple_datasets" not in locals():
                     single_residue_multiple_datasets = pd.DataFrame(
-                        columns=interpolated_angles)
+                        columns=interpolated_angles
+                    )
 
                 # Populate dataframe with results from one residue,
                 # across multiple datasets
-                single_residue_multiple_datasets.loc['{}'.format(
-                    dataset_label)] = interpolated_map_values
+                single_residue_multiple_datasets.loc[
+                    "{}".format(dataset_label)
+                ] = interpolated_map_values
 
             # Output CSV from one resiude, multiple datasets
-            pd.DataFrame.to_csv(single_residue_multiple_datasets,
-                                    os.path.join(params.output.out_dir, residue,
-                                                 interpolate_csv))
+            pd.DataFrame.to_csv(
+                single_residue_multiple_datasets,
+                os.path.join(params.output.out_dir, residue, interpolate_csv),
+            )
         else:
-            logger.info(
-                '{}: Interpolated CSVs already generated,'.format(residue))
+            logger.info("{}: Interpolated CSVs already generated,".format(residue))
 
 
 def normalise_and_sort_ringer_results(current_dataset_results, params):
@@ -87,17 +89,19 @@ def normalise_and_sort_ringer_results(current_dataset_results, params):
 
     # Extract from current residue in dataset
     residue = current_dataset_results.index[0]
-    start_ang  = current_dataset_results.values[0,2]
-    ang_rel = params.settings.angle_sampling * current_dataset_results.columns.values[3:]-3
-    map_values = current_dataset_results.values[0,3:]
+    start_ang = current_dataset_results.values[0, 2]
+    ang_rel = (
+        params.settings.angle_sampling * current_dataset_results.columns.values[3:] - 3
+    )
+    map_values = current_dataset_results.values[0, 3:]
 
     logger.debug("Start Angle: {}".format(start_ang))
     logger.debug("Angle Relative: {}".format(start_ang))
 
-    logger.debug('Showing data for {}'.format(residue))
+    logger.debug("Showing data for {}".format(residue))
 
     # Set angles
-    ang = (start_ang+ang_rel)%360
+    ang = (start_ang + ang_rel) % 360
     logger.debug("Angles: {}".format(ang))
 
     ###################################################
@@ -115,33 +119,31 @@ def normalise_and_sort_ringer_results(current_dataset_results, params):
     return (sorted_angles, sorted_map_values)
 
 
-def linear_interpolate_ringer_results(sorted_angles,
-                                      sorted_map_values,
-                                      angle_sampling):
+def linear_interpolate_ringer_results(sorted_angles, sorted_map_values, angle_sampling):
 
     """ Interpolate ringer results to run across same angle range """
 
-    # Extend the map values, and angles to include the first element at end 
+    # Extend the map values, and angles to include the first element at end
     # (over 360 deg),and the last elment at the start (below 0 deg)
-    sorted_map_values.insert(0,sorted_map_values[-1])
+    sorted_map_values.insert(0, sorted_map_values[-1])
     # now need to append 2nd value to end of list, as 1st values is the appended value
     sorted_map_values.append(sorted_map_values[1])
-    sorted_angles.insert(0,sorted_angles[0]-angle_sampling)
-    sorted_angles.append(sorted_angles[-1]+angle_sampling)
+    sorted_angles.insert(0, sorted_angles[0] - angle_sampling)
+    sorted_angles.append(sorted_angles[-1] + angle_sampling)
 
     # Generate a set of angles to interpolate to based on the angle sampling
     interpolated_angles = np.arange(1, 360, angle_sampling)
 
     # interpolate
-    interpolated_map_values = np.interp(interpolated_angles,
-                                           sorted_angles,
-                                           sorted_map_values)
+    interpolated_map_values = np.interp(
+        interpolated_angles, sorted_angles, sorted_map_values
+    )
 
     # Offset to set peaks [60,180,300]
     offset_map_values_end = interpolated_map_values[150:]
-    offset_map_values_start = interpolated_map_values[0: 150]
-    interpolated_map_values = np.concatenate((offset_map_values_end,
-                                               offset_map_values_start))
+    offset_map_values_start = interpolated_map_values[0:150]
+    interpolated_map_values = np.concatenate(
+        (offset_map_values_end, offset_map_values_start)
+    )
 
     return (interpolated_angles, interpolated_map_values)
-
