@@ -119,16 +119,20 @@ def process_all_with_ringer(params):
 
     for qsub_number, dataset_dir in enumerate(params.input.dir):
 
-        # Label the dataset by the directory name
-        dataset_label = os.path.basename(dataset_dir.rstrip("/"))
+        print(qsub_number,dataset_dir)
 
+        print(os.path.realpath(dataset_dir))
         # TODO PDB is not a single file!!
 
-        pdb = glob.glob(os.path.join(dataset_dir, params.input.pdb_style))
-        mtz = glob.glob(os.path.join(dataset_dir, params.input.mtz_style))
+        files = glob.glob(os.path.join(os.path.realpath(dataset_dir), params.input.pdb_style))
 
-        print("------------**-----------")
-        print(pdb)
+        print(type(files))
+        print(files)
+
+        files.extend(glob.glob(os.path.join(os.path.realpath(dataset_dir), params.input.mtz_style)))
+
+        print(type(files))
+        print(files)
 
         if not pdb:
             continue
