@@ -21,8 +21,9 @@ class TestMultipleDatasetRinger(unittest.TestCase):
 
         self.params.input.dir = ["multiple_dataset_ringer/test/resources/*/"]
         self.params.input.pdb_style = "*-pandda-input.pdb"
-        self.params.input.mtz_style = "*-pandda-input.mtz"
+        self.params.input.mtz_style = "*_mrflagsref_idxs.mtz"
         self.params.output.out_dir = "output"
+        self.params.input.column_labels = "2FOFCWT,PHI2FOFCWT"
 
     def tearDown(self):
         """
@@ -30,12 +31,16 @@ class TestMultipleDatasetRinger(unittest.TestCase):
         """
         shutil.rmtree(os.path.realpath("output"))
 
+
     def test_multiple_dataset_rigner(self):
         """
         Test multiple dataset ringer
         """
         multiple_dataset_ringer(self.params)
-        self.assertEqual(True, False)
+
+        # TODO Add a more through set of file existence to test
+
+        self.assertTrue(os.path.isfile(os.path.join("output", "ARG A24","all-ARG A24-257-dataset.png")), True)
 
 
 if __name__ == "__main__":

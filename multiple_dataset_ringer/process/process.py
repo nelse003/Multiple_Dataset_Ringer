@@ -4,6 +4,7 @@ import copy
 import glob
 import pandas as pd
 import logging
+import itertools
 from itertools import izip
 
 # Package for getting summary from crystal (mtz): resolution
@@ -117,68 +118,39 @@ def process_all_with_ringer(params):
     # Generate ringer results & resolution information
     ref_pdb = None
 
-    for qsub_number, dataset_dir in enumerate(params.input.dir):
+    # Get pdb and mtzs matching the pdb_style and mtz_style
+    # provided in the phil/ params
+    pdbs = glob.glob(os.path.join(os.path.realpath(params.input.dir[0]), params.input.pdb_style))
+    mtzs = glob.glob(os.path.join(os.path.realpath(params.input.dir[0]), params.input.mtz_style))
 
-        print(qsub_number,dataset_dir)
+    # Get pdb and mtz with same name (i.e. PTP1B-y0001)
+    # add a counter: qsub_number for files
+    for qsub_number, (pdb, mtz) in enumerate(itertools.product(pdbs,mtzs)):
 
-        print(os.path.realpath(dataset_dir))
-        # TODO PDB is not a single file!!
+        if os.path.basename(pdb).rstrip(params.input.pdb_style.lstrip("*")) == \
+            os.path.basename(mtz).rstrip(params.input.mtz_style.lstrip("*")):
 
-        files = glob.glob(os.path.join(os.path.realpath(dataset_dir), params.input.pdb_style))
+            # Create a reference pdb if needed
+            if ref_pdb is None:
+                ref_pdb = pdb
 
-        print(type(files))
-        print(files)
+            if params.settings.sample_only_ref_pdb is not None:
+                pdb = ref_pdb
 
-        files.extend(glob.glob(os.path.join(os.path.realpath(dataset_dir), params.input.mtz_style)))
+            # rename pdb chain if it is different to reference pdb
+            pdb = rename_chain_if_differs(pdb, ref_pdb)
 
-        print(type(files))
-        print(files)
-
-        if not pdb:
-            continue
-
-        if not mtz:
-            continue
-
-        pdb = pdb[0]
-        mtz = mtz[0]
-
-        if ref_pdb is None:
-            ref_pdb = pdb
-
-        if params.settings.sample_only_ref_pdb is not None:
-            pdb = ref_pdb
-
-        pdb = rename_chain_if_differs(pdb, ref_pdb)
-
-        if not os.path.exists(pdb):
-            print(
-                "Skipping dir: No PDB Files found in {} matching {}: {}".format(
-                    dataset_dir, params.input.pdb_style, pdb
-                )
+            # Process dataset with ringer and convert results to DataFrame
+            ringer_csv = process_with_ringer(
+                pdb=pdb,
+                mtz=mtz,
+                angle_sampling=params.settings.angle_sampling,
+                output_dir=os.path.dirname(pdb),
+                column_labels=params.input.column_labels,
+                qsub=params.settings.qsub,
+                qsub_number=qsub_number,
+                tmp_dir=params.output.tmp_dir,
             )
-            continue
-
-        if not os.path.exists(mtz):
-            print(
-                "Skipping dir: No MTZ Files found in {} matching {}: {}".format(
-                    dataset_dir, params.input.mtz_style, mtz
-                )
-            )
-            continue
-
-        # Process dataset with ringer and convert results to DataFrame
-
-        ringer_csv = process_with_ringer(
-            pdb=pdb,
-            mtz=mtz,
-            angle_sampling=params.settings.angle_sampling,
-            output_dir=dataset_dir,
-            column_labels=params.input.column_labels,
-            qsub=params.settings.qsub,
-            qsub_number=qsub_number,
-            tmp_dir=params.output.tmp_dir,
-        )
 
     if params.settings.qsub:
 
@@ -199,20 +171,9 @@ def process_all_with_ringer(params):
             )
         )
 
-    for dataset_dir in params.input.dir:
+    for pdb in pdbs:
 
-        # print(os.path.realpath(os.path.join(dataset_dir, params.input.pdb_style)))
-
-        pdb = glob.glob(
-            os.path.realpath(os.path.join(dataset_dir, params.input.pdb_style))
-        )
-
-        # TODO Allow to continue when pdb does not exist in folder
-
-        pdb = pdb[0]
-
-        print(pdb)
-
+        dataset_dir = os.path.dirname(pdb)
         dataset_label = os.path.basename(dataset_dir.rstrip("/"))
         output_base = os.path.splitext(os.path.basename(pdb))[0]
         ringer_csv = os.path.join(dataset_dir, output_base + ".csv")
