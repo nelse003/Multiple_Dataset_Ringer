@@ -147,6 +147,7 @@ def find_peaks(out_dir,ref_set,params,map_type,angle_type,peak_filename,
         all_residues_peaks = all_residues_peaks.append(all_peaks)
 
     all_residues_peaks.to_csv(os.path.join(out_dir, peak_filename))
+
 ###############################################################################
 # Use Peakutils python package to find peaks
 ############################################################################### 
