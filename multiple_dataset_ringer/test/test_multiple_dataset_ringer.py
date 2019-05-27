@@ -32,7 +32,7 @@ class TestMultipleDatasetRinger(unittest.TestCase):
         shutil.rmtree(os.path.realpath("output"))
 
 
-    def test_multiple_dataset_rigner(self):
+    def test_multiple_dataset_ringer(self):
         """
         Test multiple dataset ringer
         """

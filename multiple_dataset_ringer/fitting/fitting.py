@@ -14,7 +14,7 @@ import sys
 import time
 from scipy.optimize import curve_fit
 from scipy.spatial.distance import euclidean
-from sklearn.metrics import mean_squared_error
+#from sklearn.metrics import mean_squared_error
 
 # Plotting functions import
 from multiple_dataset_ringer.plotting.plots import RMSD_histogram
@@ -356,13 +356,27 @@ def generate_RMSD(
     out_dir, ref_set, map_type, angle_type, fit_type, fit_base_filename, datasets
 ):
 
-    """ Generate RMSD between data and fits
-     
-    Generate RMSD between fit and data. 
+    """
+    Generate RMSD between data and fits
+
+    Generate RMSD between fit and data.
     Plot histogram of all RMSD values.
     Store RMSD values in single CSV for the fit type.
-     
-     """
+
+    Parameters
+    ----------
+    out_dir
+    ref_set
+    map_type
+    angle_type
+    fit_type
+    fit_base_filename
+    datasets
+
+    Returns
+    -------
+
+    """
 
     # Dataframe to store all RMSD values
     all_RMSD = pandas.DataFrame(index=datasets, columns=ref_set.index.values)

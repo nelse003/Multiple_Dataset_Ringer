@@ -16,6 +16,19 @@ logger = logging.getLogger(__name__)
 
 def interpolate_all_ringer_results(ref_set, all_results, params):
 
+    """
+    Interpolate all ringer results to be on the same angle range
+
+    Parameters
+    ----------
+    ref_set:
+    all_results:
+    params:
+
+    Returns
+    -------
+
+    """
     datasets = all_results.keys()
     # Name for storage of interpolated results (without residue)
     interpolate_base_csv = "_{}_Datasets_{}_{}-ringer.csv".format(
@@ -23,6 +36,7 @@ def interpolate_all_ringer_results(ref_set, all_results, params):
     )
 
     # Iterate through the residues
+    interpolated_datsets = {}
     for residue, data in ref_set.iterrows():
         residue_data_list = []
 
@@ -80,14 +94,18 @@ def interpolate_all_ringer_results(ref_set, all_results, params):
                 single_residue_multiple_datasets,
                 os.path.join(params.output.out_dir, residue, interpolate_csv),
             )
+            interpolated_datsets[residue] = single_residue_multiple_datasets
+
         else:
             logger.info("{}: Interpolated CSVs already generated,".format(residue))
 
+    interpolated_datsets_df = pd.concat(interpolated_datsets, axis=0)
+    interpolated_datsets_df.to_csv(params.output.interp_csv)
 
 def normalise_and_sort_ringer_results(current_dataset_results, params):
     """Sorts ringer results by angle"""
 
-    # Extract from current residue in dataset
+    # Extract from current rhoesidue in dataset
     residue = current_dataset_results.index[0]
     start_ang = current_dataset_results.values[0, 2]
     ang_rel = (

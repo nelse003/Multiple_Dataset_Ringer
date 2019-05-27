@@ -39,7 +39,7 @@ from multiple_dataset_ringer.contact_map.pdb_to_dist import (spatial_conformer_m
                                                              print_all_alt_conformer)
 
 ###############################################################################
-# Set up for passing arguments
+#sk Set up for passing arguments
 ############################################################################### 
 
 blank_arg_prepend = {None:'dir=', '.pdb':'pdb=', '.mtz':'mtz='}

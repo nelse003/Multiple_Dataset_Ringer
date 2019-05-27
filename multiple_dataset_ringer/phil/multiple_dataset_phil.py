@@ -28,6 +28,9 @@ output {
     tmp_dir = "tmp"
         .type = str
         .multiple = False
+    interp_csv = "output/interpolated_datasets.csv"
+        .type = str
+        .multiple = False
 }
 settings {
     # XXX mmtbx.ringer can only take this an integer, >1 XXX#

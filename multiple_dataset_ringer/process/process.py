@@ -106,9 +106,21 @@ def rename_residue_labels(ringer_results):
 
 def process_all_with_ringer(params):
 
-    # Dictionary to store all of the
-    # ringer results for each of the
-    # datasets
+    """
+    Loop over all datasets and run ringer processing if needed
+
+    Parameters
+    ----------
+    params:
+        Parameters from phil file or supplied on command line/test
+
+    Returns
+    -------
+    all_results: dict
+        Dictionary to store all of the ringer results for each of the datasets
+    """
+
+    # Dictionary to store all of the ringer results for each of the datasets
     all_results = {}
 
     # Create an output directory if it doesn't already exist
@@ -202,21 +214,29 @@ def process_with_ringer(
     -----------
     pdb: str
         path to pdb file
+
     mtz: str
         path to mtz file
+
     angle_sampling: int
         angle sampling rate used in mmtbx.ringer
+
     output_dir: str
         path to output directory
+
     output_base: str
         string to use for naming the output file
+
     column_labels: str
         column labels used in mmtbx.ringer, these columns will be 
         extracted from mtz file a supplied path
+
     qsub: bool
         flag to indicate use of qsub
+
     qsub_number: int
         number for the qsub run
+
     tmp_dir: str
         path of temporary directory
         
@@ -281,7 +301,6 @@ def process_with_ringer(
                 qsub_file.write(ringer.as_command() + "\n")
 
         else:
-            print("AAAAA")
             ringer.run()
             ringer.write_output(os.path.join(output_dir, output_base + ".log"))
             assert os.path.exists(

@@ -79,6 +79,8 @@ def run(params):
     Process ringer uses 2FOFCWT, PHI2FOFCWT columns. 
     Handle other columns by moving to input check.
 
+    Currently requires:
+
     Example
     ------------------
     Command Line
@@ -95,6 +97,10 @@ def run(params):
         "Produce a dictionary of Dataframes, "
         "each containing ringer results for a dataset"
     )
+
+    ##############################################
+    # Run Ringer on all datasets
+    #############################################
     all_results = process_all_with_ringer(params)
 
     # convert to df works, but is large as csv ~300mb for 1600 datasets.
@@ -118,9 +124,16 @@ def run(params):
     ref_set = ref_set.loc[(ref_set[1] == params.settings.map_type)]
     ref_set = ref_set.loc[(ref_set[2] == params.settings.angle_type)]
 
+
+    #################################################
+    # Interpolate ringer results to be on same range
+    #################################################
     logger.info("Interpolating all ringer results to be on same angle range")
     interpolate_all_ringer_results(ref_set, all_results, params)
 
+    ###############################################
+    # Produce plots for each dataset
+    ###############################################
     interpolate_base_csv = "_{}_Datasets_{}_{}-ringer.csv".format(
         len(datasets), params.settings.map_type, params.settings.angle_type
     )
@@ -151,7 +164,9 @@ def run(params):
         else:
             logger.info("{} :Ringer plot for already generated".format(residue))
 
+    ############################################################
     # Generate correlations between datasets for each residue
+    ############################################################
     for residue, data in ref_set.iterrows():
 
         interpolate_csv = residue + interpolate_base_csv
