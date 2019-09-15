@@ -170,9 +170,16 @@ def process_all_with_ringer(params):
     for dataset_dir in params.input.dir:
 
         pdb = glob.glob(os.path.join(dataset_dir, params.input.pdb_style))
+
         print(dataset_dir)
         print(pdb)
-        pdb=pdb[0]
+
+        # issue with folders without pdb?
+        try:
+            pdb=pdb[0]
+        except IndexError:
+            continue
+
         dataset_label = os.path.basename(dataset_dir.rstrip('/'))
         output_base = os.path.splitext(os.path.basename(pdb))[0]
         ringer_csv = os.path.join(dataset_dir, output_base + '.csv')

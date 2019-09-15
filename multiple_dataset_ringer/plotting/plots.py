@@ -129,10 +129,36 @@ def multiple_line_plot_ringer(results_df, title, filename, out_dir):
     plt.savefig(os.path.join(out_dir, filename))
     plt.close()
 
-def multiple_line_plot_bold(bold_angles, bold_map_values,all_data_list, title,
-                            filename, out_dir, average_type, 
-                            bold_blue_map_values = None, bold_blue_map = None):
-    """ Plot multiple ringer plots, with a bold plot ontop"""
+def multiple_line_plot_bold(bold_angles,
+                            bold_map_values,
+                            all_data_list,
+                            title,
+                            filename,
+                            out_dir,
+                            average_type,
+                            bold_blue_map_values = None,
+                            bold_blue_map = None):
+
+    """
+    Plot multiple ringer plots, with a bold plot ontop
+
+    Parameters
+    ----------
+    bold_angles
+    bold_map_values
+    all_data_list
+    title
+    filename
+    out_dir
+    average_type
+    bold_blue_map_values
+    bold_blue_map
+
+    Returns
+    -------
+
+    """
+
     fig = myfig(figsize=(10,8))
     plt.title(title, fontsize = 24)
     plt.xlabel('Angle',fontsize = 20)
