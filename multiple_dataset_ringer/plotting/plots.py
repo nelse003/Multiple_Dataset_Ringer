@@ -1,6 +1,6 @@
 # System tasks
 import os
-import numpy
+import numpy as np
 import pandas as pd
 
 # Dendrogram
@@ -128,6 +128,7 @@ def multiple_line_plot_ringer(results_df, title, filename, out_dir):
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, filename))
     plt.close()
+
 
 def multiple_line_plot_bold(bold_angles,
                             bold_map_values,
@@ -416,6 +417,7 @@ def RMSD_histogram(all_RMSD,out_dir,RMSD_filename,fit_type):
 def peak_angle_histogram(max_peak_angle,out_dir):
     
         fig, ax = myfig()
+
         counts, bins, patches = plt.hist(np.concatenate(
                                             max_peak_angle,axis=0),
                                             bins=60, normed=True)

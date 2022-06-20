@@ -181,6 +181,8 @@ def run(params):
 
     angle_types = params.settings.angle_type.split(',')
 
+    print(all_results.values())
+
     for angle_type in angle_types:
 
         logger.info("Choose a map_type: {}\n"
@@ -233,8 +235,6 @@ def run(params):
                                           out_dir=os.path.join(params.output.out_dir, residue))
             else:
                 logger.info("{} :Ringer plot for already generated".format(residue))
-
-    exit()
 
     # Generate correlations between datasets for each residue
     for residue, data in ref_set.iterrows():
@@ -518,9 +518,9 @@ def run(params):
   
     score_matrix.to_csv('score_matrix.csv')
 
-    dataset_resolution = pd.read_csv(resolution_csv_path,
-                                         header=0,
-                                         index_col=0)
+    # dataset_resolution = pd.read_csv(resolution_csv_path,
+    #                                      header=0,
+    #                                      index_col=0)
         
     ######################################
     # Reading in subset of bound ligands 

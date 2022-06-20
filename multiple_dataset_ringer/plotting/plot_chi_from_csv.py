@@ -69,7 +69,7 @@ def plot_ringer_dataset(csv, datasets, plot_path, plot_all=True, plot_median=Tru
     plt.xlim(0,360)
     plt.xlabel("Angle")
     plt.ylabel("Electron Density")
-    plt.legend()
+    plt.legend(frameon=False)
     plt.savefig(plot_path,dpi=300)
     plt.close()
 

@@ -110,7 +110,11 @@ def process_all_with_ringer(params):
     # Generate ringer results & resolution information
     ref_pdb = None
 
-    for qsub_number, dataset_dir in enumerate(params.input.dir):
+    print("Process with ringer")
+
+    print(params.input.dir)
+
+    for qsub_number, dataset_dir in enumerate(glob.glob(params.input.dir[0])):
 
         # Label the dataset by the directory name
         dataset_label = os.path.basename(dataset_dir.rstrip('/'))
@@ -167,7 +171,7 @@ def process_all_with_ringer(params):
             str(len(params.input.dir)+2), 100, os.path.join(params.output.tmp_dir,
                                                  "ringer_master.sh")))
 
-    for dataset_dir in params.input.dir:
+    for dataset_dir in glob.glob(params.input.dir[0]):
 
         pdb = glob.glob(os.path.join(dataset_dir, params.input.pdb_style))
 
@@ -188,6 +192,7 @@ def process_all_with_ringer(params):
         all_results[dataset_label] = ringer_results
 
     return all_results
+
 
 def process_with_ringer(pdb, mtz, angle_sampling, output_dir=None,
                         output_base=None, column_labels="FWT,PHWT",

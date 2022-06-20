@@ -11,6 +11,8 @@ def correlation_single_residue(input_csv,
     # read in csv 
     data = pd.read_csv(input_csv, index_col=0)
 
+    print(data)
+
     dataset_labels=data.index.values
     all_map_values=data.values
 

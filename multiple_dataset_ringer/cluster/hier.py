@@ -65,6 +65,9 @@ def hier_agg_cluster(base_input_csv,
         linkage_matrix, dataset_labels = generate_linkage_matrix(
             os.path.join(out_dir, residue, input_csv))
 
+        print(residue)
+        print(linkage_matrix)
+
         if not os.path.exists(os.path.join(out_dir,
                                            residue,
                                            dendrogram_filename)):
@@ -157,6 +160,10 @@ def generate_linkage_matrix(pairwise_csv):
     # Load csv into pandas DataFrame
     data = pandas.read_csv(pairwise_csv, index_col=0)
     dataset_labels = data.columns.values
+
+    print(pairwise_csv)
+    print(data)
+
     # Generate linkage matrix 
     linkage_matrix = linkage(data.values, "single")
 
